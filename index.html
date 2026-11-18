@@ -378,10 +378,7 @@ background: var(--accent); color: var(--accent-contrast);
 outline: 3px solid var(--accent); outline-offset: 2px;
 }
 .nav-count { margin-left: auto; }
-.sidebar-foot { margin-top: auto; padding-top: 16px; display: flex; flex-direction: column; gap: 8px; }
-#sheetStatus[data-tipo="ok"] { color: var(--success); }
-#sheetStatus[data-tipo="erro"] { color: var(--danger); }
-#sheetStatus[data-tipo="sync"] { color: var(--accent-text); }
+.sidebar-foot { margin-top: auto; padding-top: 16px; }
 .main { flex: 1; min-width: 0; padding: 28px 32px 16px; }
 .topbar {
 display: flex; justify-content: space-between; align-items: flex-start;
@@ -1242,8 +1239,7 @@ th { background: #eee !important; }
 </button>
 </nav>
 <div class="sidebar-foot">
-<span class="muted text-xs" id="sheetStatus">Planilha: conectando...</span>
-<button class="btn" data-variant="outline" data-size="sm" type="button" id="btnSincronizar">Sincronizar agora</button>
+<span class="muted text-xs" id="sheetStatus">Planilha: aguardando endpoint</span>
 </div>
 </aside>
 
@@ -1262,8 +1258,8 @@ th { background: #eee !important; }
 
 <div class="alert" id="endpointAlert" data-variant="destructive" hidden>
 <div>
-<strong>URL do Apps Script não configurada.</strong>
-<span>As informações ficam apenas em cache neste navegador. Cole a URL do Web App em APPS_SCRIPT_URL no topo de script.js (instruções nos comentários).</span>
+<strong>Endpoint do Google Sheets não configurado.</strong>
+<span>As faltas serão salvas apenas neste navegador. Veja as instruções no topo de script.js para ativar o envio para a planilha.</span>
 </div>
 </div>
 
@@ -1443,7 +1439,7 @@ th { background: #eee !important; }
 </section>
 
 <footer class="shell-footer no-print">
-<span>Cache local no navegador (localStorage). Dados sincronizados com a planilha Frequencia_CEMJOS_2026 via Google Apps Script.</span>
+<span>Dados guardados neste navegador (localStorage). Envio opcional para a planilha Frequencia_CEMJOS_2026.</span>
 </footer>
 </div>
 </div>
@@ -1451,154 +1447,17 @@ th { background: #eee !important; }
 <script>
 /* ============================================================
 Sistema de Controle de Faltas de Alunos - CEMJOS
-Script principal: turmas, alunos, faltas, sincronização com Google Sheets.
+Script principal: turmas, alunos, chamada, calendário e consulta.
 
-CONFIGURAÇÃO: cole na constante APPS_SCRIPT_URL a URL do Web App.
-
-PASSO A PASSO (resumo para o README):
-1. Abra a planilha https://docs.google.com/spreadsheets/d/17tTh9a1Ql1qehN8Ydafdym4UN_XwinukLKh07TBqhag/edit
-2. Extensões > Apps Script. Apague o conteúdo padrão e cole o Code.gs abaixo.
-3. Salve. Implantar > Nova implantação > Tipo: Aplicativo da Web.
-4. Executar como: Eu. Quem tem acesso: Qualquer pessoa. Clique em Implantar.
-5. Copie a URL (terminada em /exec) e cole em APPS_SCRIPT_URL abaixo.
-6. Após qualquer alteração no script, crie uma NOVA VERSÃO da implantação.
-7. A conta usada precisa ser editora da planilha.
-
-CODE.GS (copie para o Apps Script; cada linha é código real):
-const PLANILHA_ID = "17tTh9a1Ql1qehN8Ydafdym4UN_XwinukLKh07TBqhag";
-const ABAS = {
-Turmas: ["ID_Turma", "Nome_Turma", "Criado_em"],
-Alunos: ["ID_Aluno", "ID_Turma", "Nome_Aluno", "Criado_em"],
-Faltas: ["Data", "Turma", "ID_Turma", "Aluno", "ID_Aluno", "Status", "Registrado_em"]
-};
-function getPlanilha() {
-const ss = SpreadsheetApp.openById(PLANILHA_ID);
-Object.keys(ABAS).forEach(function (nome) {
-let aba = ss.getSheetByName(nome);
-if (!aba) aba = ss.insertSheet(nome);
-if (aba.getLastRow() === 0) aba.getRange(1, 1, 1, ABAS[nome].length).setValues([ABAS[nome]]);
-});
-return ss;
-}
-function lerAba(ss, nome) {
-const aba = ss.getSheetByName(nome);
-const v = aba.getDataRange().getValues();
-if (v.length <= 1) return [];
-const cab = v[0];
-return v.slice(1).filter(function (l) { return l[0] !== ""; }).map(function (l) {
-const o = {};
-cab.forEach(function (c, i) { o[c] = l[i]; });
-return o;
-});
-}
-function reescreverAba(ss, nome, linhas) {
-const aba = ss.getSheetByName(nome);
-aba.clearContents();
-const cab = ABAS[nome];
-const dados = [cab].concat(linhas.map(function (l) { return cab.map(function (c) { return l[c]; }); }));
-aba.getRange(1, 1, dados.length, cab.length).setValues(dados);
-}
-function doGet() {
-try {
-const ss = getPlanilha();
-const payload = {
-turmas: lerAba(ss, "Turmas"),
-alunos: lerAba(ss, "Alunos"),
-faltas: lerAba(ss, "Faltas")
-};
-return json({ success: true, data: payload });
-} catch (err) {
-return json({ success: false, message: String(err) });
-}
-}
-function doPost(e) {
-const lock = LockService.getScriptLock();
-try {
-lock.waitLock(20000);
-const ss = getPlanilha();
-const body = JSON.parse(e.postData.contents);
-const acao = body.action;
-let turmas = lerAba(ss, "Turmas");
-let alunos = lerAba(ss, "Alunos");
-let faltas = lerAba(ss, "Faltas");
-const agora = new Date().toISOString();
-if (acao === "salvarTurma") {
-const t = body.turma;
-const existe = turmas.some(function (x) { return x.ID_Turma === t.id; });
-if (existe) {
-turmas = turmas.map(function (x) { return x.ID_Turma === t.id ? { ID_Turma: t.id, Nome_Turma: t.nome, Criado_em: x.Criado_em } : x; });
-} else {
-turmas.push({ ID_Turma: t.id, Nome_Turma: t.nome, Criado_em: agora });
-}
-reescreverAba(ss, "Turmas", turmas);
-return json({ success: true, message: "Turma salva." });
-}
-if (acao === "excluirTurma") {
-const id = body.id;
-turmas = turmas.filter(function (x) { return x.ID_Turma !== id; });
-alunos = alunos.filter(function (x) { return x.ID_Turma !== id; });
-faltas = faltas.filter(function (x) { return x.ID_Turma !== id; });
-reescreverAba(ss, "Turmas", turmas);
-reescreverAba(ss, "Alunos", alunos);
-reescreverAba(ss, "Faltas", faltas);
-return json({ success: true, message: "Turma excluída." });
-}
-if (acao === "salvarAluno") {
-const a = body.aluno;
-const existe = alunos.some(function (x) { return x.ID_Aluno === a.id; });
-if (existe) {
-alunos = alunos.map(function (x) { return x.ID_Aluno === a.id ? { ID_Aluno: a.id, ID_Turma: a.turmaId, Nome_Aluno: a.nome, Criado_em: x.Criado_em } : x; });
-} else {
-alunos.push({ ID_Aluno: a.id, ID_Turma: a.turmaId, Nome_Aluno: a.nome, Criado_em: agora });
-}
-reescreverAba(ss, "Alunos", alunos);
-return json({ success: true, message: "Aluno salvo." });
-}
-if (acao === "excluirAluno") {
-const id = body.id;
-alunos = alunos.filter(function (x) { return x.ID_Aluno !== id; });
-faltas = faltas.filter(function (x) { return x.ID_Aluno !== id; });
-reescreverAba(ss, "Alunos", alunos);
-reescreverAba(ss, "Faltas", faltas);
-return json({ success: true, message: "Aluno excluído." });
-}
-if (acao === "salvarFaltas") {
-const turma = body.turma;
-const data = body.data;
-faltas = faltas.filter(function (x) { return !(x.ID_Turma === turma.id && String(x.Data) === data); });
-body.lista.forEach(function (r) {
-faltas.push({
-Data: data,
-Turma: turma.nome,
-ID_Turma: turma.id,
-Aluno: r.nome,
-ID_Aluno: r.id,
-Status: r.status,
-Registrado_em: agora
-});
-});
-reescreverAba(ss, "Faltas", faltas);
-return json({ success: true, message: "Chamada salva." });
-}
-return json({ success: false, message: "Ação desconhecida: " + acao });
-} catch (err) {
-return json({ success: false, message: String(err) });
-} finally {
-try { lock.releaseLock(); } catch (x) {}
-}
-}
-function json(obj) {
-return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
-}
-
+>>> CONFIGURAÇÃO DO ENDPOINT DO GOOGLE SHEETS <<<
+Cole abaixo a URL do Web App publicado no Google Apps Script.
 ============================================================ */
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyn3nr5rRYko0rtDksCoQk_5r2Zim9zLdevXpHkVI9NcWca4HQTnJXA-olBN30lhfn2/exec";
+const ENDPOINT_SHEETS = ""; // Cole aqui a URL gerada no Apps Script (terminada em /exec)
 
 const PLANILHA_ID = "17tTh9a1Ql1qehN8Ydafdym4UN_XwinukLKh07TBqhag";
 const PLANILHA_URL = "https://docs.google.com/spreadsheets/d/" + PLANILHA_ID + "/edit?gid=0#gid=0";
 
 const CHAVE_DADOS = "cemjos_faltas_v1";
-const CHAVE_FILA = "cemjos_fila_pendente_v1";
 const MESES = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
 
 /* ---------- Utilidades ---------- */
@@ -1644,7 +1503,6 @@ const turmas = [
 { id: "t3", nome: "1º C - Noturno", alunos: alunosC.map((n, i) => ({ id: "a3" + i, nome: n })) }
 ];
 
-// Faltas de exemplo: data -> { turmaId: [alunoId, ...] }
 const faltas = {};
 const hoje = new Date();
 const exemplos = [
@@ -1674,129 +1532,15 @@ if (!estado || !Array.isArray(estado.turmas)) {
 estado = estadoInicial();
 store.set(estado);
 }
-const filaStore = window.skipStore(CHAVE_FILA, []);
 
 function salvar() {
 store.set(estado);
 }
 
-/* ---------- Comunicação com o Apps Script ---------- */
-function endpointConfigurado() {
-return APPS_SCRIPT_URL && APPS_SCRIPT_URL.indexOf("COLE_AQUI") === -1;
-}
-
-function definirStatus(texto, tipo) {
-const el = $("#sheetStatus");
-el.textContent = texto;
-el.dataset.tipo = tipo || "";
-}
-
-function enviarAcao(payload) {
-return fetch(APPS_SCRIPT_URL, {
-method: "POST",
-headers: { "Content-Type": "text/plain;charset=utf-8" },
-body: JSON.stringify(payload)
-}).then((r) => r.json()).then((res) => {
-if (!res.success) throw new Error(res.message || "Falha no servidor");
-return res;
-});
-}
-
-/* Envia a operação; se falhar, guarda na fila pendente para reenvio. */
-function operar(payload, mensagemOk) {
-if (!endpointConfigurado()) {
-window.skipUI.toast("Salvo localmente. Configure APPS_SCRIPT_URL para enviar à planilha.", { type: "error", title: "Sem planilha" });
-return Promise.resolve(false);
-}
-definirStatus("Sincronizando...", "sync");
-return enviarAcao(payload).then(() => {
-definirStatus("Salvo na planilha", "ok");
-if (mensagemOk) window.skipUI.toast(mensagemOk, { type: "success" });
-return true;
-}).catch(() => {
-filaStore.update((f) => (f || []).concat([payload]));
-definirStatus("Erro ao conectar — dados salvos localmente", "erro");
-window.skipUI.toast("Sem conexão. Operação guardada e será reenviada.", { type: "error" });
-return false;
-});
-}
-
-/* Reenvia a fila pendente em ordem. */
-function sincronizarFila() {
-if (!endpointConfigurado()) return Promise.resolve(false);
-const fila = filaStore.get() || [];
-if (fila.length === 0) return Promise.resolve(true);
-definirStatus("Sincronizando...", "sync");
-let restantes = fila.slice();
-const proximo = () => {
-if (restantes.length === 0) {
-filaStore.set([]);
-definirStatus("Salvo na planilha", "ok");
-return Promise.resolve(true);
-}
-return enviarAcao(restantes[0]).then(() => {
-restantes = restantes.slice(1);
-filaStore.set(restantes);
-return proximo();
-});
-};
-return proximo().catch(() => {
-filaStore.set(restantes);
-definirStatus("Erro ao conectar — dados salvos localmente", "erro");
-return false;
-});
-}
-
-/* Carrega do Apps Script (doGet) e sincroniza o cache local. */
-function carregarDaPlanilha() {
-if (!endpointConfigurado()) {
-definirStatus("Planilha não configurada — cache local", "erro");
-return Promise.resolve(false);
-}
-definirStatus("Sincronizando...", "sync");
-return fetch(APPS_SCRIPT_URL).then((r) => r.json()).then((res) => {
-if (!res.success) throw new Error(res.message);
-const d = res.data;
-const turmas = (d.turmas || []).map((t) => ({
-id: t.ID_Turma, nome: t.Nome_Turma, alunos: []
-}));
-(d.alunos || []).forEach((a) => {
-const t = turmas.find((x) => x.id === a.ID_Turma);
-if (t) t.alunos.push({ id: a.ID_Aluno, nome: a.Nome_Aluno });
-});
-const faltasMap = {};
-(d.faltas || []).forEach((f) => {
-const data = normalizarData(f.Data);
-if (f.Status !== "FALTOU") return;
-faltasMap[data] = faltasMap[data] || {};
-faltasMap[data][f.ID_Turma] = faltasMap[data][f.ID_Turma] || [];
-faltasMap[data][f.ID_Turma].push(f.ID_Aluno);
-});
-if (turmas.length > 0 || (filaStore.get() || []).length === 0) {
-estado = { turmas, faltas: faltasMap, turmaSelecionada: turmas[0] ? turmas[0].id : null };
-salvar();
-}
-return sincronizarFila().then(() => true);
-}).catch(() => {
-definirStatus("Erro ao conectar — dados salvos localmente", "erro");
-return false;
-});
-}
-
-function normalizarData(valor) {
-if (!valor) return "";
-const s = String(valor);
-if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-const d = new Date(valor);
-return isNaN(d) ? s : dataISO(d);
-}
-
-/* ---------- Estado da chamada e calendário ---------- */
 let dataSelecionada = hojeISO();
 let mesCalendario = new Date();
-let chamadaAtual = {}; // alunoId -> true (faltou) / false (presente)
+let chamadaAtual = {};
 
-/* ---------- Navegação entre seções ---------- */
 function mostrarSecao(id) {
 $$(".section").forEach((s) => s.classList.toggle("active", s.id === id));
 $$(".nav-link").forEach((b) => b.classList.toggle("active", b.dataset.target === id));
@@ -1807,7 +1551,6 @@ $$(".nav-link").forEach((btn) => {
 btn.addEventListener("click", () => mostrarSecao(btn.dataset.target));
 });
 
-/* ---------- Seção 1: Turmas e alunos ---------- */
 function turmaAtual() {
 return estado.turmas.find((t) => t.id === estado.turmaSelecionada) || null;
 }
@@ -1903,8 +1646,7 @@ estado.turmaSelecionada = nova.id;
 salvar();
 $("#turmaNome").value = "";
 renderTurmas();
-operar({ action: "salvarTurma", turma: { id: nova.id, nome: nova.nome } },
-"Turma \"" + nome + "\" cadastrada com sucesso!");
+window.skipUI.toast("Turma \"" + nome + "\" cadastrada com sucesso!", { type: "success" });
 }
 
 function adicionarAluno(ev) {
@@ -1917,14 +1659,12 @@ if (t.alunos.some((a) => a.nome.toLowerCase() === nome.toLowerCase())) {
 window.skipUI.toast("Este aluno já está nesta turma.", { type: "error" });
 return;
 }
-const novoAluno = { id: gerarId("a"), nome };
-t.alunos.push(novoAluno);
+t.alunos.push({ id: gerarId("a"), nome });
 salvar();
 $("#alunoNome").value = "";
 renderTurmas();
 renderChamada();
-operar({ action: "salvarAluno", aluno: { id: novoAluno.id, turmaId: t.id, nome } },
-"Aluno adicionado à turma " + t.nome + ".");
+window.skipUI.toast("Aluno adicionado à turma " + t.nome + ".", { type: "success" });
 }
 
 function abrirConfirmacao(titulo, mensagem, aoConfirmar) {
@@ -1971,11 +1711,7 @@ alvo.nome = limpo;
 salvar();
 renderTurmas();
 renderChamada();
-if (tipo === "turma") {
-operar({ action: "salvarTurma", turma: { id: alvo.id, nome: limpo } }, "Nome da turma atualizado.");
-} else {
-operar({ action: "salvarAluno", aluno: { id: alvo.id, turmaId: t.id, nome: limpo } }, "Nome do aluno atualizado.");
-}
+window.skipUI.toast("Nome atualizado com sucesso.", { type: "success" });
 }
 
 function excluirTurma(id) {
@@ -1991,7 +1727,7 @@ if (estado.turmaSelecionada === id) estado.turmaSelecionada = estado.turmas[0] ?
 salvar();
 renderTurmas();
 renderChamada();
-operar({ action: "excluirTurma", id }, "Turma excluída.");
+window.skipUI.toast("Turma excluída.", { type: "success" });
 }
 );
 }
@@ -2008,7 +1744,7 @@ t.alunos = t.alunos.filter((x) => x.id !== id);
 salvar();
 renderTurmas();
 renderChamada();
-operar({ action: "excluirAluno", id }, "Aluno excluído.");
+window.skipUI.toast("Aluno excluído.", { type: "success" });
 }
 );
 }
@@ -2040,7 +1776,6 @@ if (btn.dataset.act === "editar-aluno") editarNome("aluno", btn.dataset.id);
 if (btn.dataset.act === "excluir-aluno") excluirAluno(btn.dataset.id);
 });
 
-/* ---------- Seção 2: Calendário ---------- */
 function renderCalendario() {
 const ano = mesCalendario.getFullYear();
 const mes = mesCalendario.getMonth();
@@ -2095,7 +1830,6 @@ mesCalendario = new Date(mesCalendario.getFullYear(), mesCalendario.getMonth() +
 renderCalendario();
 });
 
-/* ---------- Seção 2: Chamada do dia ---------- */
 function carregarChamada() {
 const t = turmaAtual();
 chamadaAtual = {};
@@ -2180,39 +1914,50 @@ navigator.clipboard.writeText(texto).then(
 );
 });
 
+function gravarNaPlanilha(registros) {
+if (!ENDPOINT_SHEETS) {
+return Promise.resolve({ enviado: false, motivo: "sem-endpoint" });
+}
+return fetch(ENDPOINT_SHEETS, {
+method: "POST",
+mode: "no-cors",
+headers: { "Content-Type": "text/plain;charset=utf-8" },
+body: JSON.stringify({ planilha: PLANILHA_ID, registros })
+}).then(() => ({ enviado: true }))
+.catch(() => ({ enviado: false, motivo: "erro-rede" }));
+}
+
 $("#btnConfirmarFaltas").addEventListener("click", () => {
 const t = turmaAtual();
 if (!t) {
 window.skipUI.toast("Cadastre e selecione uma turma antes de confirmar.", { type: "error" });
 return;
 }
-const btn = $("#btnConfirmarFaltas");
-if (btn.disabled) return;
-btn.disabled = true;
 const faltosos = t.alunos.filter((a) => chamadaAtual[a.id]).map((a) => a.id);
 if (!estado.faltas[dataSelecionada]) estado.faltas[dataSelecionada] = {};
 estado.faltas[dataSelecionada][t.id] = faltosos;
 salvar();
 
-const lista = t.alunos.map((a) => ({
-id: a.id,
-nome: a.nome,
-status: chamadaAtual[a.id] ? "Faltou" : "Presente"
+const registros = t.alunos.map((a) => ({
+data: formatarDataBR(dataSelecionada),
+turma: t.nome,
+aluno: a.nome,
+status: chamadaAtual[a.id] ? "FALTOU" : "PRESENTE"
 }));
 
-operar({
-action: "salvarFaltas",
-turma: { id: t.id, nome: t.nome },
-data: dataSelecionada,
-lista
-}, "Faltas de " + t.nome + " confirmadas.").finally(() => {
-btn.disabled = false;
+gravarNaPlanilha(registros).then((res) => {
 renderCalendario();
 atualizarKpisCadastro();
+if (res.enviado) {
+window.skipUI.toast("Faltas de " + t.nome + " salvas e enviadas à planilha.", { type: "success" });
+} else if (res.motivo === "sem-endpoint") {
+window.skipUI.toast("Faltas salvas neste navegador. Planilha não configurada (ver script.js).", { type: "error", title: "Sem envio à planilha" });
+} else {
+window.skipUI.toast("Faltas salvas localmente, mas o envio à planilha falhou.", { type: "error" });
+}
 });
 });
 
-/* ---------- Seção 3: Consulta e impressão ---------- */
 function atualizarKpisConsulta() {
 const linhas = coletarFaltosos(obterFiltros());
 const total = linhas.reduce((s, l) => s + l.total, 0);
@@ -2261,7 +2006,6 @@ resultado[chave] = { data, turmaId: tid, turma: turma.nome, alunoId: aid, aluno:
 });
 });
 });
-// Agrupa por aluno/turma no período: total de faltas
 const porAluno = {};
 Object.values(resultado).forEach((r) => {
 const k = r.turmaId + "|" + r.alunoId;
@@ -2329,7 +2073,6 @@ window.skipUI.toast("Na janela de impressão, escolha \"Salvar como PDF\".");
 setTimeout(() => window.print(), 250);
 });
 
-/* ---------- Ações extras ---------- */
 $("#btnBackup").addEventListener("click", () => {
 const blob = new Blob([JSON.stringify(estado, null, 2)], { type: "application/json" });
 const a = document.createElement("a");
@@ -2353,12 +2096,11 @@ window.skipUI.toast("Dados de exemplo restaurados.", { type: "success" });
 });
 
 function atualizarAvisoEndpoint() {
-const ativo = endpointConfigurado();
+const ativo = !!ENDPOINT_SHEETS;
 $("#endpointAlert").hidden = ativo;
-if (!ativo) definirStatus("Planilha não configurada — cache local", "erro");
+$("#sheetStatus").textContent = ativo ? "Planilha: envio ativo" : "Planilha: aguardando endpoint";
 }
 
-/* ---------- Inicialização ---------- */
 document.addEventListener("DOMContentLoaded", () => {
 criarDialogoConfirmacao();
 const hojeInput = hojeISO();
@@ -2366,28 +2108,13 @@ $("#fDia").value = hojeInput;
 $("#fMes").value = hojeInput.slice(0, 7);
 $("#fIni").value = hojeInput.slice(0, 7) + "-01";
 $("#fFim").value = hojeInput;
-$("#btnSincronizar").addEventListener("click", () => {
-carregarDaPlanilha().then((ok) => {
-renderTurmas();
-renderCalendario();
-carregarChamada();
-atualizarKpisConsulta();
-window.skipUI.toast(ok ? "Sincronização concluída." : "Não foi possível sincronizar.", { type: ok ? "success" : "error" });
-});
-});
+$("#listaTurmas").addEventListener("keydown", () => {});
 atualizarAvisoEndpoint();
 renderTurmas();
 renderCalendario();
 carregarChamada();
 atualizarKpisConsulta();
-carregarDaPlanilha().then(() => {
-renderTurmas();
-renderCalendario();
-carregarChamada();
-atualizarKpisConsulta();
 });
-});
-
 </script>
 </body>
 </html>
