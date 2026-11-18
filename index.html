@@ -1030,7 +1030,7 @@ document.addEventListener("DOMContentLoaded", () => {
   
   atualizarStatusEndpoint();
 
-  if (ENDPOINT_SHEETS && !ENDPOINT_SHEETS.includes("SUA_URL_AQUI")) {
+  if (ENDPOINT_SHEETS && !ENDPOINT_SHEETS.includes("https://script.google.com/macros/s/AKfycbz0zQIDTwShDOGl0XQXUlIF1LEMzJnVBdgGSRIHgBu85DB3xifvay2Swwc03OOboNMn/exec")) {
     fetch(ENDPOINT_SHEETS)
       .then(res => res.json())
       .then(data => {
