@@ -1,0 +1,2393 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistema de Controle de Faltas de Alunos</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+/* Skip artifact shell — fixed styles served beside every artifact.
+   Tokens, utilities and components (basecoat 1.0 markup, no CDN); artifacts
+   override --accent for their own identity. */
+:root {
+  color-scheme: light dark;
+  --accent: #2563eb;
+  --accent-contrast: #ffffff;
+  --accent-text: color-mix(in srgb, var(--accent) 72%, #000);
+  --bg: #f8f9fb;
+  --surface: #ffffff;
+  --text: #14171f;
+  --text-muted: #5b6472;
+  --border: rgba(20, 23, 31, 0.10);
+  --radius: 10px;
+  --shadow: 0 1px 3px rgba(20, 23, 31, 0.08);
+  --space: 16px;
+  --success: #0a7a35;
+  --danger: #c0262d;
+  --warning: #8a5300;
+}
+/* Theme resolution. Without data-theme the viewer's system preference decides,
+   as it always did. With it, the artifact's own choice wins in BOTH directions:
+   a page that hardcodes one palette must not be handed the opposite set of
+   tokens by the machine it happens to be opened on. The dark values appear
+   twice because a media query cannot be folded into a selector list.
+   The attribute sits inside :where() so these blocks keep the specificity of a
+   bare :root — the page's own <style> is linked after this file and must go on
+   overriding any token it wants, exactly as it could before. */
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    --accent-text: color-mix(in srgb, var(--accent) 78%, #fff);
+    --bg: #101318;
+    --surface: #181c23;
+    --text: #eef1f6;
+    --text-muted: #9aa4b2;
+    --border: rgba(238, 241, 246, 0.12);
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    --success: #4ade80;
+    --danger: #f87171;
+    --warning: #fbbf24;
+  }
+}
+:root:where([data-theme="dark"]) {
+  color-scheme: dark;
+  --accent-text: color-mix(in srgb, var(--accent) 78%, #fff);
+  --bg: #101318;
+  --surface: #181c23;
+  --text: #eef1f6;
+  --text-muted: #9aa4b2;
+  --border: rgba(238, 241, 246, 0.12);
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --success: #4ade80;
+  --danger: #f87171;
+  --warning: #fbbf24;
+}
+:root:where([data-theme="light"]) { color-scheme: light; }
+/* Pages generated before the shell had its own components still link the
+   basecoat CDN, which reads its own tokens and switches theme only on a
+   .dark class. Bridged to the shell's, whatever of it those pages use takes
+   the page's accent and follows the declared theme. Its --accent token is a
+   hover tint, renamed in its theme as --color-accent; the shell's --accent is
+   the brand colour, so the tint is derived from it here. */
+:root {
+  --background: var(--bg);
+  --foreground: var(--text);
+  --card: var(--surface);
+  --card-foreground: var(--text);
+  --popover: var(--surface);
+  --popover-foreground: var(--text);
+  --primary: var(--accent);
+  --primary-foreground: var(--accent-contrast);
+  --secondary: color-mix(in srgb, var(--text) 7%, var(--surface));
+  --secondary-foreground: var(--text);
+  --muted: color-mix(in srgb, var(--text) 5%, var(--surface));
+  --muted-foreground: var(--text-muted);
+  --color-accent: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  --color-accent-foreground: var(--text);
+  --destructive: var(--danger);
+  --input: var(--border);
+  --ring: var(--accent);
+}
+* { box-sizing: border-box; }
+/* The reset the pages were written against: they all linked basecoat, which
+   ships Tailwind's. Its components now live here, so the reset does too. */
+*, ::before, ::after, ::backdrop { margin: 0; padding: 0; border: 0 solid; }
+/* Preflight's rule too: without it a component class that sets display
+   (.alert, .card, .btn…) beats the hidden attribute and shows the element. */
+[hidden]:where(:not([hidden="until-found"])) { display: none !important; }
+.hidden { display: none !important; }
+h1, h2, h3, h4, h5, h6 { font-size: inherit; font-weight: inherit; }
+a { color: inherit; text-decoration: inherit; }
+b, strong { font-weight: bolder; }
+ol, ul, menu { list-style: none; }
+svg, video, canvas, iframe { display: block; vertical-align: middle; }
+button, input, select, textarea { color: inherit; background-color: transparent; border-radius: 0; }
+table { border-collapse: collapse; }
+hr { height: 0; color: inherit; border-top-width: 1px; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+img { max-width: 100%; display: block; }
+
+.shell-container { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
+.shell-section { padding: calc(var(--space) * 2) 0; }
+.shell-grid { display: grid; gap: var(--space); grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.shell-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: var(--space); }
+.shell-footer { padding: 24px 0 40px; color: var(--text-muted); font-size: 13px; }
+
+.shell-hero { padding: calc(var(--space) * 3) 0 calc(var(--space) * 2); }
+.shell-hero h1 { font-size: clamp(26px, 4vw, 40px); line-height: 1.15; margin: 0 0 10px; text-wrap: balance; }
+.shell-hero p { color: var(--text-muted); max-width: 60ch; margin: 0; }
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: var(--space);
+}
+
+.kpi { display: flex; flex-direction: column; gap: 4px; }
+.kpi .kpi-value { font-size: clamp(22px, 2.3vw, 28px); font-weight: 650; line-height: 1.1; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.kpi .kpi-label { font-size: 13px; color: var(--text-muted); }
+.kpi .kpi-delta { font-size: 12.5px; font-weight: 600; }
+.kpi .kpi-delta.up { color: var(--success); }
+.kpi .kpi-delta.down { color: var(--danger); }
+
+table.shell-table { border-collapse: collapse; width: 100%; font-size: 14px; }
+table.shell-table th {
+  text-align: left; font-size: 11.5px; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--text-muted); font-weight: 600;
+}
+table.shell-table th, table.shell-table td { padding: 9px 12px 9px 0; border-bottom: 1px solid var(--border); }
+table.shell-table td.num, table.shell-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+table.shell-table tbody tr:hover { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+
+.chart-box { width: 100%; min-height: 220px; }
+.chart-box svg { width: 100%; height: auto; display: block; }
+.chart-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 16px; margin-top: 12px; font-size: 12.5px; color: var(--text-muted); }
+.chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.chart-legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.chart-legend b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.muted { color: var(--text-muted); }
+.accent { color: var(--accent-text); }
+.shell-badge, .eyebrow {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent-text);
+}
+/* A pill keeps its content width inside flex and grid columns, which would
+   otherwise stretch it across the card; a centred parent still centres it. */
+.shell-badge, .eyebrow, .badge { width: fit-content; max-width: 100%; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .shell-fade { animation: shell-fade 400ms ease both; }
+  @keyframes shell-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+}
+
+/* Layout and type utilities: what the pages kept spelling in style="".
+   Spacing and type sizes follow Tailwind's scale; there is no Tailwind. */
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.stack { display: flex; flex-direction: column; gap: var(--space); }
+.between { justify-content: space-between; }
+.grow { flex: 1 1 0; min-width: 0; }
+.cols-2, .cols-3, .cols-4, .cols-5 { display: grid; gap: var(--space); grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 720px) {
+  .cols-2, .cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cols-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 1000px) { .cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (min-width: 1100px) { .cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+.gap-1 { gap: 4px; } .gap-2 { gap: 8px; } .gap-3 { gap: 12px; } .gap-4 { gap: 16px; } .gap-6 { gap: 24px; }
+.m-0 { margin: 0; }
+.mt-1 { margin-top: 4px; } .mt-2 { margin-top: 8px; } .mt-3 { margin-top: 12px; } .mt-4 { margin-top: 16px; } .mt-6 { margin-top: 24px; }
+.mb-1 { margin-bottom: 4px; } .mb-2 { margin-bottom: 8px; } .mb-3 { margin-bottom: 12px; } .mb-4 { margin-bottom: 16px; } .mb-6 { margin-bottom: 24px; }
+.p-2 { padding: 8px; } .p-3 { padding: 12px; } .p-4 { padding: 16px; } .p-6 { padding: 24px; }
+.text-xs { font-size: 12px; } .text-sm { font-size: 14px; } .text-base { font-size: 16px; }
+.text-lg { font-size: 18px; } .text-xl { font-size: 20px; line-height: 1.35; }
+.text-2xl { font-size: 24px; line-height: 1.25; } .text-3xl { font-size: 30px; line-height: 1.2; }
+.font-medium { font-weight: 500; } .font-semibold { font-weight: 600; } .font-bold { font-weight: 700; }
+.text-right { text-align: right; } .text-center { text-align: center; }
+.nowrap { white-space: nowrap; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
+.w-full { width: 100%; }
+.text-success { color: var(--success); } .text-danger { color: var(--danger); } .text-warning { color: var(--warning); }
+
+/* Components, with basecoat 1.0 markup (variants and sizes are data
+   attributes) and the shell tokens, so a page needs neither component CSS
+   nor a CSS framework. An older page that also links basecoat gets these
+   rules after it, over the same properties. */
+button, input, select, textarea { font: inherit; }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 36px; padding: 0 14px; border: 1px solid transparent; border-radius: calc(var(--radius) - 2px);
+  background: var(--accent); color: var(--accent-contrast);
+  font-size: 14px; font-weight: 500; line-height: 1; white-space: nowrap; text-decoration: none; cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+.btn:hover { background: color-mix(in srgb, var(--accent) 86%, #000); }
+.btn:disabled, .btn[aria-disabled="true"] { opacity: 0.5; pointer-events: none; }
+.btn[data-variant="secondary"] { background: color-mix(in srgb, var(--text) 8%, var(--surface)); color: var(--text); }
+.btn[data-variant="secondary"]:hover { background: color-mix(in srgb, var(--text) 14%, var(--surface)); }
+.btn[data-variant="outline"] { background: var(--surface); color: var(--text); border-color: var(--border); }
+.btn[data-variant="ghost"] { background: transparent; color: var(--text); }
+.btn[data-variant="outline"]:hover, .btn[data-variant="ghost"]:hover { background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+.btn[data-variant="destructive"] { background: var(--danger); color: var(--bg); }
+.btn[data-variant="destructive"]:hover { background: color-mix(in srgb, var(--danger) 86%, var(--text)); }
+.btn[data-variant="link"] { height: auto; padding: 0; background: none; color: var(--accent-text); text-decoration: underline; text-underline-offset: 3px; }
+.btn[data-size="sm"] { height: 30px; padding: 0 10px; font-size: 13px; }
+.btn[data-size="lg"] { height: 42px; padding: 0 20px; font-size: 15px; }
+.btn[data-size="icon"] { width: 36px; padding: 0; }
+
+.badge {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px;
+  border: 1px solid transparent; border-radius: 999px; background: var(--accent); color: var(--accent-contrast);
+  font-size: 12px; font-weight: 600; line-height: 1.5; white-space: nowrap;
+}
+.badge[data-variant="secondary"] { background: color-mix(in srgb, var(--text) 8%, var(--surface)); color: var(--text); }
+.badge[data-variant="outline"] { background: transparent; color: var(--text); border-color: var(--border); }
+.badge[data-variant="destructive"] { background: color-mix(in srgb, var(--danger) 14%, var(--surface)); color: var(--danger); }
+
+.alert {
+  display: grid; gap: 4px; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); color: var(--text); font-size: 14px;
+}
+.alert h2, .alert h3 { margin: 0; font-size: 14px; font-weight: 600; }
+.alert p, .alert section { margin: 0; color: var(--text-muted); }
+.alert[data-variant="destructive"] { border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); background: color-mix(in srgb, var(--danger) 7%, var(--surface)); color: var(--danger); }
+
+.card {
+  display: flex; flex-direction: column; gap: 16px; padding: 20px 0;
+  border: 1px solid var(--border); border-radius: calc(var(--radius) + 2px);
+  background: var(--surface); color: var(--text); box-shadow: var(--shadow);
+}
+.card > header, .card > section, .card > footer { padding: 0 20px; }
+.card > header { display: grid; gap: 4px; }
+.card > header h2, .card > header h3 { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.3; }
+.card > header p { margin: 0; color: var(--text-muted); font-size: 14px; }
+.card > footer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+.input {
+  width: 100%; min-height: 36px; padding: 6px 12px; border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px);
+  background: var(--surface); color: var(--text); font-size: 14px;
+}
+textarea.input { min-height: 84px; resize: vertical; }
+.input::placeholder { color: var(--text-muted); }
+.input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+.field { display: grid; gap: 6px; }
+.field label { font-size: 14px; font-weight: 500; }
+.field [role="alert"] { color: var(--danger); font-size: 13px; }
+
+dialog.dialog {
+  width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 32px); margin: auto; padding: 0;
+  border: 1px solid var(--border); border-radius: calc(var(--radius) + 4px);
+  background: var(--surface); color: var(--text); box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+}
+dialog.dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
+dialog.dialog > div { display: grid; gap: 16px; padding: 24px; }
+dialog.dialog header { display: grid; gap: 4px; }
+dialog.dialog header h2 { margin: 0; font-size: 18px; font-weight: 600; }
+dialog.dialog header p { margin: 0; color: var(--text-muted); font-size: 14px; }
+dialog.dialog footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+
+.tabs { display: grid; gap: 12px; }
+.tabs > [role="tablist"] {
+  display: inline-flex; gap: 4px; width: fit-content; max-width: 100%; padding: 4px; overflow-x: auto;
+  border-radius: var(--radius); background: color-mix(in srgb, var(--text) 6%, var(--surface));
+}
+.tabs [role="tab"] {
+  padding: 6px 12px; border: 0; border-radius: calc(var(--radius) - 4px); background: transparent;
+  color: var(--text-muted); font-size: 14px; font-weight: 500; white-space: nowrap; cursor: pointer;
+}
+.tabs [role="tab"][aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+.tabs [role="tabpanel"][hidden] { display: none; }
+
+.accordion > details { border-bottom: 1px solid var(--border); }
+.accordion > details > summary {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 14px 0; font-weight: 500; list-style: none; cursor: pointer;
+}
+.accordion > details > summary::-webkit-details-marker { display: none; }
+.accordion > details > summary::after { content: "+"; color: var(--text-muted); font-size: 18px; line-height: 1; }
+.accordion > details[open] > summary::after { content: "\2212"; }
+.accordion > details > :not(summary) { margin: 0 0 14px; color: var(--text-muted); }
+
+.toaster {
+  position: fixed; right: 16px; bottom: 16px; z-index: 50; display: flex; flex-direction: column-reverse; gap: 8px;
+  width: min(360px, calc(100vw - 32px)); pointer-events: none;
+}
+.toaster .toast { pointer-events: auto; transition: opacity 200ms ease, transform 200ms ease; }
+.toaster .toast[aria-hidden="true"] { opacity: 0; transform: translateY(8px); }
+.toaster .toast-content {
+  padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); color: var(--text); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); font-size: 13px;
+}
+.toaster .toast-content h2 { margin: 0 0 2px; font-size: 14px; font-weight: 600; }
+.toaster .toast-content p { margin: 0; color: var(--text-muted); }
+
+/* skipUI building blocks. */
+.skip-table-search { max-width: 320px; margin-bottom: 12px; }
+.skip-table-wrap { overflow-x: auto; }
+table.shell-table th[data-sort] { cursor: pointer; user-select: none; }
+table.shell-table th[aria-sort="ascending"]::after { content: " \25B2"; font-size: 9px; }
+table.shell-table th[aria-sort="descending"]::after { content: " \25BC"; font-size: 9px; }
+table.shell-table td.skip-table-empty { color: var(--text-muted); text-align: center; padding: 24px 0; }
+.skip-pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; font-size: 13px; color: var(--text-muted); }
+.toaster .toast[data-type="success"] .toast-content { border-left: 3px solid var(--success); }
+.toaster .toast[data-type="error"] .toast-content { border-left: 3px solid var(--danger); }
+
+</style>
+<style>
+:root {
+--accent: #0f766e;
+--accent-text: #0f5f58;
+--accent-contrast: #ffffff;
+--present: #16a34a;
+--absent: #dc2626;
+}
+html, body {
+font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+background: var(--bg);
+color: var(--text);
+margin: 0;
+}
+.app { display: flex; min-height: 100vh; }
+.sidebar {
+width: 240px;
+flex-shrink: 0;
+background: var(--surface);
+border-right: 1px solid var(--border);
+display: flex;
+flex-direction: column;
+padding: 20px 14px;
+position: sticky;
+top: 0;
+height: 100vh;
+}
+.brand { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+.brand-mark {
+width: 42px; height: 42px; border-radius: var(--radius);
+background: var(--accent); color: var(--accent-contrast);
+display: grid; place-items: center;
+}
+.brand-name { font-weight: 700; font-size: 1.05rem; }
+.brand-sub { font-size: 0.78rem; color: var(--text-muted); }
+.nav { display: flex; flex-direction: column; gap: 6px; }
+.nav-link {
+display: flex; align-items: center; gap: 10px;
+padding: 10px 12px; border-radius: var(--radius);
+border: 1px solid transparent; background: transparent;
+color: var(--text); font: inherit; font-size: 0.92rem; cursor: pointer;
+text-align: left; transition: background 0.15s ease, border-color 0.15s ease;
+}
+.nav-link:hover { background: rgba(15,118,110,0.08); }
+.nav-link.active {
+background: var(--accent); color: var(--accent-contrast);
+}
+.nav-link:focus-visible, .btn:focus-visible, .input:focus-visible, .toggle:focus-visible {
+outline: 3px solid var(--accent); outline-offset: 2px;
+}
+.nav-count { margin-left: auto; }
+.sidebar-foot { margin-top: auto; padding-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+#sheetStatus[data-tipo="ok"] { color: var(--success); }
+#sheetStatus[data-tipo="erro"] { color: var(--danger); }
+#sheetStatus[data-tipo="sync"] { color: var(--accent-text); }
+.main { flex: 1; min-width: 0; padding: 28px 32px 16px; }
+.topbar {
+display: flex; justify-content: space-between; align-items: flex-start;
+gap: 16px; flex-wrap: wrap; margin-bottom: 20px;
+}
+.page-title { font-size: 1.7rem; margin: 6px 0 4px; font-weight: 700; }
+.section { display: none; }
+.section.active { display: block; animation: fadeIn 0.25s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.kpi-row {
+display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+gap: 14px; margin-bottom: 18px;
+}
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 18px; }
+.grid-reg { display: grid; grid-template-columns: minmax(300px, 1fr) minmax(320px, 1.2fr); gap: 18px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); margin-bottom: 18px; }
+.card > header h2 { margin: 0 0 4px; font-size: 1.05rem; }
+.card > header p { margin: 0 0 14px; color: var(--text-muted); font-size: 0.86rem; }
+.inline-form { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.inline-form .field { flex: 1; min-width: 200px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: 0.85rem; font-weight: 600; }
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.list li {
+display: flex; align-items: center; justify-content: space-between; gap: 10px;
+padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius);
+background: var(--bg); transition: transform 0.15s ease;
+}
+.list li:hover { transform: translateX(2px); }
+.list li.selected { border-color: var(--accent); background: rgba(15,118,110,0.07); }
+.list-main { display: flex; flex-direction: column; min-width: 0; flex: 1; cursor: pointer; }
+.list-main strong { font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-main small { color: var(--text-muted); font-size: 0.78rem; }
+.row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.cal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.cal-head strong { text-transform: capitalize; font-size: 1rem; }
+.cal-week, .cal-grid {
+display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; text-align: center;
+}
+.cal-week span { font-size: 0.75rem; color: var(--text-muted); font-weight: 600; padding-bottom: 4px; }
+.cal-day {
+aspect-ratio: 1 / 1; border: 1px solid var(--border); border-radius: var(--radius);
+background: var(--bg); color: var(--text); font: inherit; font-size: 0.9rem;
+cursor: pointer; display: flex; align-items: center; justify-content: center;
+position: relative; transition: background 0.15s ease, transform 0.1s ease;
+}
+.cal-day:hover { background: rgba(15,118,110,0.1); transform: scale(1.04); }
+.cal-day.outside { opacity: 0.35; }
+.cal-day.today { border-color: var(--accent); font-weight: 700; color: var(--accent-text); }
+.cal-day.selected { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
+.cal-day.has-faltas::after {
+content: ""; position: absolute; bottom: 5px; width: 5px; height: 5px;
+border-radius: 50%; background: var(--absent);
+}
+.cal-day.selected.has-faltas::after { background: #fff; }
+.chamada { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 360px; overflow-y: auto; }
+.chamada li {
+display: flex; align-items: center; justify-content: space-between;
+padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius);
+background: var(--bg); transition: border-color 0.2s ease;
+}
+.chamada li.faltou { border-color: var(--absent); background: rgba(220,38,38,0.06); }
+.chamada .nome { font-weight: 600; font-size: 0.92rem; }
+.toggle-wrap { display: flex; align-items: center; gap: 10px; }
+.toggle-label { font-size: 0.8rem; font-weight: 700; min-width: 72px; text-align: right; }
+.toggle-label.present { color: var(--present); }
+.toggle-label.absent { color: var(--absent); }
+.toggle {
+position: relative; width: 52px; height: 28px; border: none; border-radius: 999px;
+background: var(--present); cursor: pointer; transition: background 0.2s ease; padding: 0;
+}
+.toggle.off { background: #9ca3af; }
+.toggle::after {
+content: ""; position: absolute; top: 3px; left: 27px; width: 22px; height: 22px;
+border-radius: 50%; background: #fff; transition: left 0.2s ease;
+box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+}
+.toggle.off::after { left: 3px; }
+.toggle .ico { position: absolute; top: 6px; font-size: 0; }
+.resumo-dia {
+margin: 12px 0; padding: 12px 14px; border-radius: var(--radius);
+background: rgba(15,118,110,0.07); border: 1px dashed var(--accent);
+font-size: 0.88rem; color: var(--text);
+}
+.table-wrap { overflow-x: auto; }
+.kpi-row .kpi { min-height: 96px; }
+.num { text-align: right; }
+.hero-mini { font-size: 0.8rem; color: var(--text-muted); }
+.print-only { display: none; }
+.empty-msg { color: var(--text-muted); font-size: 0.88rem; padding: 12px; text-align: center; border: 1px dashed var(--border); border-radius: var(--radius); }
+.shell-footer { margin-top: 24px; padding-top: 14px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 0.8rem; }
+@media (max-width: 860px) {
+.app { flex-direction: column; }
+.sidebar {
+width: 100%; height: auto; position: sticky; top: 0; z-index: 30;
+flex-direction: row; align-items: center; padding: 10px 12px; gap: 8px;
+border-right: none; border-bottom: 1px solid var(--border); overflow-x: auto;
+}
+.brand { margin: 0; }
+.brand-sub, .sidebar-foot { display: none; }
+.nav { flex-direction: row; gap: 4px; }
+.nav-link { white-space: nowrap; padding: 8px 10px; font-size: 0.85rem; }
+.nav-count { display: none; }
+.main { padding: 18px 14px; }
+.grid-reg { grid-template-columns: 1fr; }
+.page-title { font-size: 1.35rem; }
+.cols-4 { grid-template-columns: 1fr 1fr !important; }
+}
+@media (max-width: 520px) {
+.cols-4 { grid-template-columns: 1fr !important; }
+.toggle-label { display: none; }
+}
+@media print {
+.sidebar, .topbar, .no-print, .section:not(#sec-consulta), .shell-footer, .alert { display: none !important; }
+body, .app, .main { background: #fff !important; color: #000 !important; padding: 0 !important; margin: 0 !important; }
+.section { display: block !important; }
+.card { border: none !important; box-shadow: none !important; padding: 0 !important; }
+#areaImpressao { display: block !important; }
+.print-only { display: block !important; margin-bottom: 14px; }
+.print-head h2 { font-size: 16pt; margin: 0 0 4px; }
+.print-head p { font-size: 10pt; margin: 0; }
+.table-wrap { overflow: visible; }
+table { width: 100%; border-collapse: collapse; font-size: 10pt; }
+th, td { border: 1px solid #999; padding: 6px 8px; text-align: left; }
+th { background: #eee !important; }
+.num { text-align: right; }
+@page { margin: 14mm; }
+}
+
+</style>
+<script>
+/* Skip artifact shell — fixed helpers served beside every artifact. */
+(function () {
+  "use strict";
+
+  var fmt = {
+    num: function (v, opts) { return new Intl.NumberFormat("pt-BR", opts || {}).format(v); },
+    brl: function (v) { return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v); },
+    pct: function (v) { return new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 1 }).format(v); },
+    compact: function (v) { return new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 }).format(v); },
+    brlCompact: function (v) { return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", notation: "compact", maximumFractionDigits: 1 }).format(v); }
+  };
+
+  // axisLabels formats the five y-axis ticks in the unit the chart declared
+  // (percent, BRL or plain numbers), compact so long values never clip, with
+  // the fewest decimals that still print every tick exactly (1,5 mi, not 2 mi).
+  function axisLabels(format, ticks) {
+    function at(digits) {
+      var opts = { notation: "compact", maximumFractionDigits: digits };
+      if (format === "pct") opts = { style: "percent", maximumFractionDigits: digits };
+      else if (format === "brl") opts = { style: "currency", currency: "BRL", notation: "compact", maximumFractionDigits: digits };
+      var nf = new Intl.NumberFormat("pt-BR", opts);
+      return ticks.map(function (t) { return nf.format(t); });
+    }
+    for (var digits = 0; digits < 2; digits++) {
+      if (at(digits).join("|") === at(digits + 1).join("|")) return at(digits);
+    }
+    return at(2);
+  }
+
+  // yAxisPad formats the ticks and measures the left padding they need from
+  // the longest one; drawYAxis then draws the grid and the labels.
+  function yAxisPad(format, max) {
+    var labels = axisLabels(format, [0, max / 4, max / 2, (max * 3) / 4, max]);
+    var longest = labels.reduce(function (m, l) { return Math.max(m, l.length); }, 0);
+    return { labels: labels, padL: Math.max(40, Math.round(longest * 6.2) + 14) };
+  }
+  function drawYAxis(svg, axis, W, padR, padT, plotH) {
+    for (var g = 0; g <= 4; g++) {
+      var gy = padT + plotH - (plotH * g) / 4;
+      svg.appendChild(svgEl("line", { x1: axis.padL, y1: gy, x2: W - padR, y2: gy, stroke: "currentColor", "stroke-opacity": 0.08 }));
+      var lbl = svgEl("text", { x: axis.padL - 8, y: gy + 4, "text-anchor": "end", "font-size": 10, fill: mutedColor() });
+      lbl.textContent = axis.labels[g];
+      svg.appendChild(lbl);
+    }
+  }
+
+  // xLabelStep: show every k-th category label so labels never overlap, and
+  // always the last one (counted back from the end).
+  function xLabelStep(labels, step) {
+    var longest = labels.reduce(function (m, l) { return Math.max(m, String(l).length); }, 0);
+    return Math.max(1, Math.ceil((longest * 6.4 + 8) / Math.max(step, 1)));
+  }
+  function drawXLabel(svg, text, x, y, W, edgeGuard) {
+    var anchor = "middle";
+    var half = String(text).length * 3.2;
+    if (edgeGuard && x - half < 4) anchor = "start";
+    if (edgeGuard && x + half > W - 4) anchor = "end";
+    var tx = svgEl("text", { x: x, y: y, "text-anchor": anchor, "font-size": 11, fill: mutedColor() });
+    tx.textContent = text;
+    svg.appendChild(tx);
+  }
+  // categoryLines fits a bar's category name in its slot: one line, two lines
+  // split at a space, or cut with "…". A bar without its name can't be read, so
+  // categories are never skipped; null when the slot is too narrow for that.
+  function categoryLines(text, slot) {
+    var fit = Math.floor((slot - 6) / 6.4);
+    var s = String(text);
+    if (fit < 4) return null;
+    if (s.length <= fit) return [s];
+    var cut = function (t) { return t.length <= fit ? t : t.slice(0, fit - 1).trimEnd() + "…"; };
+    var best = -1;
+    for (var i = 0; i < s.length; i++) {
+      if (s[i] === " " && (best < 0 || Math.abs(s.length / 2 - i) < Math.abs(s.length / 2 - best))) best = i;
+    }
+    if (best < 0) return [cut(s)];
+    return [cut(s.slice(0, best)), cut(s.slice(best + 1))];
+  }
+  function legend(el, items) {
+    var box = document.createElement("div");
+    box.className = "chart-legend";
+    items.forEach(function (it) {
+      var row = document.createElement("span");
+      var dot = document.createElement("i");
+      dot.style.background = it.color;
+      row.appendChild(dot);
+      row.appendChild(document.createTextNode((it.label || "") + (it.value ? " " : "")));
+      if (it.value) {
+        var v = document.createElement("b");
+        v.textContent = it.value;
+        row.appendChild(v);
+      }
+      box.appendChild(row);
+    });
+    resolve(el).appendChild(box);
+  }
+  var seriesPalette = ["#1baf7a", "#eda100", "#e34948", "#4a3aa7", "#e87ba4", "#0ea5b7"];
+
+  // format accepts a function OR one of the fmt names ("num" | "brl" | "pct").
+  // A page's function may return nothing or throw: the chart prints its
+  // number instead of taking the rest of the page script down with it.
+  function coerceFormat(spec) {
+    if (typeof spec === "function") {
+      return function (v) {
+        try {
+          var out = spec(v);
+          return out == null ? "" : String(out);
+        } catch (e) {
+          return fmt.num(v);
+        }
+      };
+    }
+    if (typeof spec === "string" && fmt[spec]) return fmt[spec];
+    return function (v) { return fmt.num(v); };
+  }
+
+  function accent() {
+    return getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#2563eb";
+  }
+  function mutedColor() {
+    return getComputedStyle(document.documentElement).getPropertyValue("--text-muted").trim() || "#5b6472";
+  }
+  function svgEl(tag, attrs) {
+    var el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    for (var k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+  }
+  function frame(el, w, h) {
+    var svg = svgEl("svg", { viewBox: "0 0 " + w + " " + h, role: "img" });
+    el = resolve(el);
+    el.innerHTML = "";
+    el.appendChild(svg);
+    return svg;
+  }
+
+  // maxOf guards the axis scale: empty values would give -Infinity (truthy,
+  // so "|| 1" can't catch it) and a non-positive max would flip the chart.
+  // finite reads a chart value as a number, 0 when it is not one (NaN,
+  // Infinity, a stray string), so one bad value cannot blank the axis.
+  function finite(v) {
+    var n = +v;
+    return isFinite(n) ? n : 0;
+  }
+
+  function maxOf(values) {
+    var m = values.length ? Math.max.apply(null, values.map(finite)) : 0;
+    return m > 0 ? m : 1;
+  }
+
+  // labelsFor pads or trims the category names to the n points drawn: pages
+  // pass labels and values of different lengths, and one throw here loses
+  // every section the page renders after the chart.
+  function labelsFor(cfg, n) {
+    var out = [];
+    for (var i = 0; i < n; i++) out.push(cfg.labels && cfg.labels[i] != null ? String(cfg.labels[i]) : "");
+    return out;
+  }
+
+  // niceMax rounds the scale up so the four grid steps land on round values
+  // (1, 1.5, 2, 2.5, 3, 4, 5, 6 or 8 × 10^k) and the tick labels read exactly.
+  function niceMax(max) {
+    var raw = max / 4;
+    var mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    var res = raw / mag;
+    var steps = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
+    var nice = steps.filter(function (s) { return s >= res - 1e-9; })[0];
+    return nice * mag * 4;
+  }
+
+  // bar(el, {labels:[], values:[], color?, format?}) — vertical bar chart.
+  function bar(el, cfg) {
+    var W = 640, H = 280, padB = 30, padT = 12, padR = 12;
+    var max = niceMax(maxOf(cfg.values));
+    var axis = yAxisPad(cfg.format, max);
+    var svg = frame(el, W, H);
+    var n = cfg.values.length;
+    var labels = labelsFor(cfg, n);
+    var plotW = W - axis.padL - padR;
+    var step = plotW / n, bw = Math.min(step * 0.62, 64);
+    var names = labels.map(function (l) { return categoryLines(l, step); });
+    var named = names.every(Boolean);
+    if (named && names.some(function (l) { return l.length > 1; })) padB = 42;
+    var plotH = H - padT - padB;
+    var color = cfg.color || accent();
+    var f = coerceFormat(cfg.format);
+    var every = xLabelStep(labels, step);
+    drawYAxis(svg, axis, W, padR, padT, plotH);
+    cfg.values.forEach(function (v, i) {
+      var bh = Math.max(0, (finite(v) / max) * plotH);
+      var x = axis.padL + i * step + (step - bw) / 2;
+      var y = padT + plotH - bh;
+      var r = svgEl("rect", { x: x, y: y, width: bw, height: bh, rx: 4, fill: (cfg.colors && cfg.colors[i]) || color });
+      var t = svgEl("title", {});
+      t.textContent = labels[i] + ": " + f(v);
+      r.appendChild(t);
+      svg.appendChild(r);
+      if (named) {
+        names[i].forEach(function (text, li) {
+          drawXLabel(svg, text, x + bw / 2, padT + plotH + 18 + li * 13, W, false);
+        });
+      } else if ((n - 1 - i) % every === 0) {
+        drawXLabel(svg, labels[i], x + bw / 2, H - 10, W, false);
+      }
+    });
+  }
+
+  // line(el, {labels:[], values:[] | series:[{label, values, color?}], color?, format?})
+  // — one line, or several series on one scale with a legend under the chart.
+  function line(el, cfg) {
+    var W = 640, H = 280, padB = 30, padT = 12, padR = 16;
+    var series = cfg.series && cfg.series.length
+      ? cfg.series
+      : [{ label: "", values: cfg.values || [], color: cfg.color }];
+    var all = [];
+    series.forEach(function (s) { all = all.concat(s.values || []); });
+    var max = niceMax(maxOf(all));
+    var axis = yAxisPad(cfg.format, max);
+    var svg = frame(el, W, H);
+    var n = series.reduce(function (m, s) { return Math.max(m, (s.values || []).length); }, 0);
+    var labels = labelsFor(cfg, n);
+    var plotW = W - axis.padL - padR, plotH = H - padT - padB;
+    var f = coerceFormat(cfg.format);
+    drawYAxis(svg, axis, W, padR, padT, plotH);
+    var xs = labels.map(function (_, i) { return axis.padL + (n === 1 ? plotW / 2 : (plotW * i) / (n - 1)); });
+    var every = xLabelStep(labels, n > 1 ? plotW / (n - 1) : plotW);
+    labels.forEach(function (label, i) {
+      if ((n - 1 - i) % every === 0) drawXLabel(svg, label, xs[i], H - 10, W, true);
+    });
+    var colors = series.map(function (s, si) {
+      return s.color || (si === 0 ? (cfg.color || accent()) : seriesPalette[(si - 1) % seriesPalette.length]);
+    });
+    series.forEach(function (s, si) {
+      var color = colors[si];
+      var pts = (s.values || []).map(function (v, i) { return [xs[i], padT + plotH - (finite(v) / max) * plotH]; });
+      var d = pts.map(function (p, i) { return (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1); }).join(" ");
+      svg.appendChild(svgEl("path", { d: d, fill: "none", stroke: color, "stroke-width": 2, "stroke-linejoin": "round" }));
+      pts.forEach(function (p, i) {
+        var c = svgEl("circle", { cx: p[0], cy: p[1], r: 3.5, fill: color });
+        var t = svgEl("title", {});
+        t.textContent = (s.label ? s.label + " · " : "") + labels[i] + ": " + f(s.values[i]);
+        c.appendChild(t);
+        svg.appendChild(c);
+      });
+    });
+    if (series.length > 1) {
+      legend(el, series.map(function (s, si) { return { label: s.label, color: colors[si] }; }));
+    }
+  }
+
+  // donut(el, {labels:[], values:[], colors?, format?, center?, centerLabel?, legend?})
+  // — donut with a short total in the centre (compact, in the declared unit)
+  // and, with legend: true, the labels and shares listed under it.
+  function donut(el, cfg) {
+    var W = 320, H = 280, cx = W / 2, cy = H / 2, R = 92, r = 58;
+    var svg = frame(el, W, H);
+    // At 100% of a wide container the donut outgrows the height pages give
+    // the box and spills over the next section: keep it at its own size.
+    svg.style.maxWidth = W + "px";
+    svg.style.margin = "0 auto";
+    var values = cfg.values.map(finite);
+    var labels = labelsFor(cfg, values.length);
+    var sum = values.reduce(function (a, b) { return a + b; }, 0);
+    var total = sum || 1;
+    var palette = cfg.colors || [accent()].concat(seriesPalette);
+    // The hover keeps the full value; the centre has room for a short one.
+    var full = coerceFormat(cfg.format);
+    var short = typeof cfg.format === "function" ? full : cfg.format === "brl" ? fmt.brlCompact : fmt.compact;
+    var a0 = -Math.PI / 2;
+    values.forEach(function (v, i) {
+      var a1 = a0 + (v / total) * Math.PI * 2;
+      var large = a1 - a0 > Math.PI ? 1 : 0;
+      var p = ["M", cx + R * Math.cos(a0), cy + R * Math.sin(a0),
+        "A", R, R, 0, large, 1, cx + R * Math.cos(a1), cy + R * Math.sin(a1),
+        "L", cx + r * Math.cos(a1), cy + r * Math.sin(a1),
+        "A", r, r, 0, large, 0, cx + r * Math.cos(a0), cy + r * Math.sin(a0), "Z"].join(" ");
+      var path = svgEl("path", { d: p, fill: palette[i % palette.length] });
+      var t = svgEl("title", {});
+      t.textContent = labels[i] + ": " + full(v) + " (" + fmt.pct(v / total) + ")";
+      path.appendChild(t);
+      svg.appendChild(path);
+      a0 = a1;
+    });
+    // A share chart has no total worth printing: without its own centre text
+    // the caption alone takes the middle.
+    var text = cfg.center != null ? String(cfg.center) : (cfg.format === "pct" ? "" : short(sum));
+    if (text) {
+      var size = text.length > 9 ? 14 : text.length > 7 ? 17 : 20;
+      var center = svgEl("text", { x: cx, y: cfg.centerLabel ? cy + 1 : cy + 6, "text-anchor": "middle", "font-size": size, "font-weight": 650, fill: "currentColor" });
+      center.textContent = text;
+      svg.appendChild(center);
+    }
+    if (cfg.centerLabel) {
+      var cap = svgEl("text", { x: cx, y: text ? cy + 19 : cy + 5, "text-anchor": "middle", "font-size": 11, fill: mutedColor() });
+      cap.textContent = cfg.centerLabel;
+      svg.appendChild(cap);
+    }
+    if (cfg.legend) {
+      legend(el, labels.map(function (label, i) {
+        return { label: label, color: palette[i % palette.length], value: fmt.pct(values[i] / total) };
+      }));
+    }
+  }
+
+  // ---- Page building blocks: what dashboards and small systems kept
+  // re-implementing — a searchable sortable table, a KPI row, tabs, toasts,
+  // dialogs, saved state and mock data. Every call is opt-in, so a page that
+  // brings its own versions keeps them.
+
+  function resolve(target) {
+    return typeof target === "string" ? document.querySelector(target) : target;
+  }
+
+  function node(tag, className, text) {
+    var el = document.createElement(tag);
+    if (className) el.className = className;
+    if (text != null) el.textContent = text;
+    return el;
+  }
+
+  function isNumberColumn(col) {
+    return col.align === "right" || col.format === "num" || col.format === "brl" || col.format === "pct";
+  }
+
+  function cellText(col, row) {
+    var value = row[col.key];
+    if (value == null) return "";
+    return col.format ? coerceFormat(col.format)(value) : String(value);
+  }
+
+  function compareValues(a, b) {
+    if (typeof a === "number" && typeof b === "number") return a - b;
+    return String(a == null ? "" : a).localeCompare(String(b == null ? "" : b), "pt-BR", { numeric: true });
+  }
+
+  // table(el, {columns, rows, search?, pageSize?, empty?, onRowClick?}) — a
+  // table.shell-table with sortable headers, an optional search box and
+  // pager. A column is {key, label, format?, align?, sortable? (true),
+  // render?(value, row) returning a Node or an HTML string — the page writes
+  // its cell templates as markup}. Plain values are always set as text.
+  // Returns {setRows, rows}.
+  function table(target, cfg) {
+    var root = resolve(target);
+    var cols = cfg.columns || [];
+    var pageSize = cfg.pageSize || 0;
+    var state = { rows: (cfg.rows || []).slice(), query: "", key: null, dir: 1, page: 0 };
+    root.innerHTML = "";
+    if (cfg.search) {
+      var search = node("input", "input skip-table-search");
+      search.type = "search";
+      search.placeholder = typeof cfg.search === "string" ? cfg.search : "Buscar…";
+      search.setAttribute("aria-label", search.placeholder);
+      search.addEventListener("input", function () {
+        state.query = search.value.trim().toLowerCase();
+        state.page = 0;
+        draw();
+      });
+      root.appendChild(search);
+    }
+    var tableEl = node("table", "shell-table");
+    var headRow = node("tr");
+    var heads = cols.map(function (col) {
+      var th = node("th", isNumberColumn(col) ? "num" : "", col.label == null ? col.key : col.label);
+      th.scope = "col";
+      if (col.sortable !== false) {
+        var toggle = function () {
+          state.dir = state.key === col.key ? -state.dir : 1;
+          state.key = col.key;
+          draw();
+        };
+        th.setAttribute("data-sort", col.key);
+        th.tabIndex = 0;
+        th.addEventListener("click", toggle);
+        th.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
+        });
+      }
+      headRow.appendChild(th);
+      return th;
+    });
+    var thead = node("thead");
+    var tbody = node("tbody");
+    var wrap = node("div", "skip-table-wrap");
+    var pager = node("div", "skip-pager");
+    thead.appendChild(headRow);
+    tableEl.appendChild(thead);
+    tableEl.appendChild(tbody);
+    wrap.appendChild(tableEl);
+    root.appendChild(wrap);
+    if (pageSize) root.appendChild(pager);
+
+    function visibleRows() {
+      var rows = state.rows;
+      if (state.query) {
+        rows = rows.filter(function (row) {
+          return cols.some(function (col) { return cellText(col, row).toLowerCase().indexOf(state.query) >= 0; });
+        });
+      }
+      if (state.key) {
+        var key = state.key, dir = state.dir;
+        rows = rows.slice().sort(function (a, b) { return dir * compareValues(a[key], b[key]); });
+      }
+      return rows;
+    }
+
+    function drawRow(row) {
+      var tr = node("tr");
+      cols.forEach(function (col) {
+        var td = node("td", isNumberColumn(col) ? "num" : "");
+        if (!col.render) {
+          td.textContent = cellText(col, row);
+        } else {
+          var content = col.render(row[col.key], row);
+          if (content instanceof Node) td.appendChild(content);
+          else td.innerHTML = content == null ? "" : String(content);
+        }
+        tr.appendChild(td);
+      });
+      // The row stays a row (no role) and takes focus, so a keyboard reaches
+      // the same action; keys pressed on a control inside a cell are its own.
+      if (cfg.onRowClick) {
+        tr.style.cursor = "pointer";
+        tr.tabIndex = 0;
+        tr.addEventListener("click", function () { cfg.onRowClick(row); });
+        tr.addEventListener("keydown", function (e) {
+          if (e.target !== tr || (e.key !== "Enter" && e.key !== " ")) return;
+          e.preventDefault();
+          cfg.onRowClick(row);
+        });
+      }
+      return tr;
+    }
+
+    function pagerButton(label, disabled, step) {
+      var button = node("button", "btn", label);
+      button.type = "button";
+      button.setAttribute("data-variant", "outline");
+      button.setAttribute("data-size", "sm");
+      button.disabled = disabled;
+      button.addEventListener("click", function () { state.page += step; draw(); });
+      return button;
+    }
+
+    function draw() {
+      var rows = visibleRows();
+      heads.forEach(function (th, i) {
+        if (cols[i].key === state.key) th.setAttribute("aria-sort", state.dir > 0 ? "ascending" : "descending");
+        else th.removeAttribute("aria-sort");
+      });
+      var pages = pageSize ? Math.max(1, Math.ceil(rows.length / pageSize)) : 1;
+      state.page = Math.min(state.page, pages - 1);
+      var shown = pageSize ? rows.slice(state.page * pageSize, (state.page + 1) * pageSize) : rows;
+      tbody.innerHTML = "";
+      if (!shown.length) {
+        var empty = node("td", "skip-table-empty", cfg.empty || "Nenhum registro encontrado.");
+        empty.colSpan = cols.length;
+        tbody.appendChild(node("tr")).appendChild(empty);
+      }
+      shown.forEach(function (row) { tbody.appendChild(drawRow(row)); });
+      if (!pageSize) return;
+      pager.innerHTML = "";
+      var from = rows.length ? state.page * pageSize + 1 : 0;
+      pager.appendChild(node("span", "", from + "–" + Math.min(rows.length, (state.page + 1) * pageSize) + " de " + rows.length));
+      var nav = node("div", "row gap-2");
+      nav.appendChild(pagerButton("Anterior", state.page === 0, -1));
+      nav.appendChild(pagerButton("Próxima", state.page >= pages - 1, 1));
+      pager.appendChild(nav);
+    }
+
+    draw();
+    return {
+      setRows: function (rows) { state.rows = rows.slice(); draw(); },
+      rows: visibleRows
+    };
+  }
+
+  // kpis(el, [{label, value, format?, delta?, hint?}]) — KPI cards in a
+  // responsive grid; delta is a fraction (0.12 renders as ▲ 12%).
+  function kpis(target, items) {
+    var root = resolve(target);
+    root.innerHTML = "";
+    root.classList.add("shell-grid");
+    items.forEach(function (item) {
+      var card = node("div", "panel kpi");
+      card.appendChild(node("span", "kpi-label", item.label));
+      // Large money values go compact ("R$ 27,5 mi"): the full amount does
+      // not fit a KPI card at four per row.
+      var kpiFormat = item.format === "brl" && Math.abs(item.value) >= 1e6 ? fmt.brlCompact : (item.format ? coerceFormat(item.format) : null);
+      card.appendChild(node("span", "kpi-value", kpiFormat ? kpiFormat(item.value) : String(item.value)));
+      if (typeof item.delta === "number") {
+        var up = item.delta >= 0;
+        card.appendChild(node("span", "kpi-delta " + (up ? "up" : "down"), (up ? "▲ " : "▼ ") + fmt.pct(Math.abs(item.delta))));
+      }
+      if (item.hint) card.appendChild(node("span", "kpi-label", item.hint));
+      root.appendChild(card);
+    });
+  }
+
+  // badge(text, variant?) — a .badge node for table cells and lists;
+  // variant is "secondary" | "outline" | "destructive" (default: primary).
+  function badge(text, variant) {
+    var el = node("span", "badge", text);
+    if (variant) el.setAttribute("data-variant", variant);
+    return el;
+  }
+
+  // tabs(el) — wires one .tabs block: [role=tab] buttons inside
+  // [role=tablist], each with aria-controls naming its [role=tabpanel].
+  function tabs(target) {
+    var root = resolve(target);
+    var buttons = Array.prototype.slice.call(root.querySelectorAll('[role="tab"]'));
+    function select(chosen) {
+      buttons.forEach(function (b) {
+        var on = b === chosen;
+        b.setAttribute("aria-selected", on ? "true" : "false");
+        b.tabIndex = on ? 0 : -1;
+        var panel = document.getElementById(b.getAttribute("aria-controls"));
+        if (panel) panel.hidden = !on;
+      });
+    }
+    buttons.forEach(function (b, i) {
+      b.addEventListener("click", function () { select(b); });
+      b.addEventListener("keydown", function (e) {
+        var step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+        if (!step) return;
+        var next = buttons[(i + step + buttons.length) % buttons.length];
+        next.focus();
+        select(next);
+      });
+    });
+    select(buttons.filter(function (b) { return b.getAttribute("aria-selected") === "true"; })[0] || buttons[0]);
+  }
+
+  // toast(message, {type?: "success" | "error", title?, duration?}) — a
+  // .toast in a shared .toaster at the bottom of the page.
+  function toast(message, opts) {
+    opts = opts || {};
+    var toaster = document.querySelector(".toaster") || document.body.appendChild(node("div", "toaster"));
+    var item = node("div", "toast");
+    item.setAttribute("role", opts.type === "error" ? "alert" : "status");
+    item.setAttribute("aria-hidden", "true");
+    if (opts.type) item.setAttribute("data-type", opts.type);
+    var content = node("div", "toast-content");
+    var section = node("section");
+    if (opts.title) section.appendChild(node("h2", "", opts.title));
+    section.appendChild(node("p", "", message));
+    content.appendChild(section);
+    item.appendChild(content);
+    toaster.appendChild(item);
+    requestAnimationFrame(function () { item.setAttribute("aria-hidden", "false"); });
+    setTimeout(function () {
+      item.setAttribute("aria-hidden", "true");
+      setTimeout(function () { item.remove(); }, 400);
+    }, opts.duration || 3000);
+  }
+
+  // Dialogs are native <dialog class="dialog">: a [data-dialog-open="id"]
+  // anywhere opens one, a [data-dialog-close] inside closes it, and a click on
+  // its backdrop closes it too. Plain dialog.showModal()/close() still work.
+  document.addEventListener("click", function (e) {
+    var target = e.target;
+    if (!(target instanceof Element)) return;
+    var opener = target.closest("[data-dialog-open]");
+    if (opener) {
+      var dialog = document.getElementById(opener.getAttribute("data-dialog-open"));
+      if (dialog && dialog.showModal && !dialog.open) dialog.showModal();
+      return;
+    }
+    var closer = target.closest("[data-dialog-close]");
+    if (closer && closer.closest("dialog")) {
+      closer.closest("dialog").close();
+      return;
+    }
+    if (target.tagName === "DIALOG" && target.classList.contains("dialog") && target.open) target.close();
+  });
+
+  // store(key, fallback) — JSON state in localStorage that never throws (a
+  // private window or a full quota falls back to memory): {get, set, update}.
+  function store(key, fallback) {
+    var memory;
+    // Set while the last write did not reach localStorage: what is stored
+    // there is older than memory until a write goes through again.
+    var unsaved = false;
+    var initial = function () { return fallback === undefined ? undefined : JSON.parse(JSON.stringify(fallback)); };
+    function get() {
+      if (!unsaved) {
+        try {
+          var raw = localStorage.getItem(key);
+          if (raw != null) return JSON.parse(raw);
+        } catch (e) { /* storage unavailable: memory below */ }
+      }
+      return memory !== undefined ? memory : initial();
+    }
+    function set(value) {
+      memory = value;
+      try {
+        localStorage.setItem(key, JSON.stringify(value));
+        unsaved = false;
+      } catch (e) {
+        unsaved = true;
+      }
+      return value;
+    }
+    return { get: get, set: set, update: function (fn) { return set(fn(get())); } };
+  }
+
+  // mock — seeded random data, so a page asks for 90 days of numbers in one
+  // line instead of writing them out; the same seed gives the same data.
+  var FIRST = ["Ana", "Bruno", "Carla", "Diego", "Eduarda", "Felipe", "Gabriela", "Henrique", "Isabela", "João",
+    "Larissa", "Marcos", "Natália", "Otávio", "Paula", "Rafael", "Sofia", "Thiago", "Vanessa", "Lucas"];
+  var LAST = ["Silva", "Santos", "Oliveira", "Souza", "Pereira", "Costa", "Rodrigues", "Almeida", "Nascimento", "Lima",
+    "Araújo", "Fernandes", "Carvalho", "Gomes", "Martins", "Rocha", "Ribeiro", "Barbosa"];
+  var INITIALS = "ABCDEFGHIJLMNOPRSTV".split("");
+  var CITIES = ["São Paulo, SP", "Rio de Janeiro, RJ", "Belo Horizonte, MG", "Curitiba, PR", "Porto Alegre, RS",
+    "Salvador, BA", "Recife, PE", "Fortaleza, CE", "Brasília, DF", "Goiânia, GO", "Campinas, SP", "Florianópolis, SC",
+    "Manaus, AM", "Belém, PA", "Vitória, ES", "Natal, RN"];
+
+  function createMock(seed) {
+    var state = seed >>> 0;
+    var names = 0;
+    function random() {
+      state = (state + 0x6d2b79f5) >>> 0;
+      var t = state;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    }
+    function int(min, max) { return min + Math.floor(random() * (max - min + 1)); }
+    function pick(list) { return list[Math.floor(random() * list.length)]; }
+    var mock = {
+      seed: function (value) { state = value >>> 0; names = 0; return mock; },
+      random: random,
+      int: int,
+      float: function (min, max, decimals) {
+        var factor = Math.pow(10, decimals == null ? 2 : decimals);
+        return Math.round((min + random() * (max - min)) * factor) / factor;
+      },
+      pick: pick,
+      chance: function (p) { return random() < p; },
+      // There are 360 first/last pairs. A page that draws until the name is
+      // new (do { … } while (used.has(name))) froze the tab past them, so
+      // later draws widen the space: a second surname after 200 (6,480), a
+      // middle initial after 4,000.
+      name: function () {
+        names++;
+        var middle = names > 4000 ? pick(INITIALS) + ". " : "";
+        return pick(FIRST) + " " + middle + (names > 200 ? pick(LAST) + " " : "") + pick(LAST);
+      },
+      city: function () { return pick(CITIES); },
+      // series(n, {start, trend, noise, min, decimals}) — a walk: each value
+      // moves by trend (fraction per step) plus up to ±noise of itself.
+      series: function (n, opts) {
+        opts = opts || {};
+        var value = opts.start == null ? 100 : opts.start;
+        var factor = Math.pow(10, opts.decimals || 0);
+        var out = [];
+        for (var i = 0; i < n; i++) {
+          out.push(Math.max(opts.min == null ? 0 : opts.min, Math.round(value * factor) / factor));
+          value = value * (1 + (opts.trend || 0)) * (1 + (random() * 2 - 1) * (opts.noise == null ? 0.08 : opts.noise));
+        }
+        return out;
+      },
+      // dates(n, {end?, step?: "day" | "week" | "month"}) — ISO dates
+      // (YYYY-MM-DD), oldest first, ending at end (default: today).
+      dates: function (n, opts) {
+        opts = opts || {};
+        var end = opts.end ? new Date(opts.end) : new Date();
+        var out = [];
+        for (var i = n - 1; i >= 0; i--) {
+          var d = new Date(end.getTime());
+          if (opts.step === "month") d.setMonth(d.getMonth() - i);
+          else d.setDate(d.getDate() - i * (opts.step === "week" ? 7 : 1));
+          out.push(d.toISOString().slice(0, 10));
+        }
+        return out;
+      },
+      // rows(n, spec) — n objects; each spec value is a function(i), a list
+      // to pick from, or a constant.
+      rows: function (n, spec) {
+        var out = [];
+        for (var i = 0; i < n; i++) {
+          var row = {};
+          for (var key in spec) {
+            var value = spec[key];
+            row[key] = typeof value === "function" ? value(i) : Array.isArray(value) ? pick(value) : value;
+          }
+          out.push(row);
+        }
+        return out;
+      }
+    };
+    return mock;
+  }
+
+  window.skipShell = { fmt: fmt };
+  window.skipChart = { bar: bar, line: line, donut: donut };
+  window.skipUI = { table: table, kpis: kpis, badge: badge, tabs: tabs, toast: toast };
+  window.skipStore = store;
+  window.skipMock = createMock(20261022);
+})();
+
+</script>
+</head>
+<body>
+<div class="app">
+<aside class="sidebar" aria-label="Menu principal">
+<div class="brand">
+<div class="brand-mark" aria-hidden="true">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+</div>
+<div>
+<div class="brand-name">CEMJOS</div>
+<div class="brand-sub">Controle de Faltas</div>
+</div>
+</div>
+<nav class="nav" role="navigation">
+<button class="nav-link active" data-target="sec-cadastro" type="button">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+<span>Turmas e Alunos</span>
+<span class="badge nav-count" id="navCountClasses" data-variant="secondary">0</span>
+</button>
+<button class="nav-link" data-target="sec-registro" type="button">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+<span>Registrar Faltas</span>
+</button>
+<button class="nav-link" data-target="sec-consulta" type="button">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+<span>Consultar Faltosos</span>
+</button>
+</nav>
+<div class="sidebar-foot">
+<span class="muted text-xs" id="sheetStatus">Planilha: conectando...</span>
+<button class="btn" data-variant="outline" data-size="sm" type="button" id="btnSincronizar">Sincronizar agora</button>
+</div>
+</aside>
+
+<div class="main">
+<header class="topbar">
+<div>
+<span class="eyebrow">Frequência escolar 2026</span>
+<h1 class="page-title">Sistema de Controle de Faltas de Alunos</h1>
+<p class="muted text-sm">Cadastre turmas, registre faltas do dia e consulte alunos faltosos em um só lugar.</p>
+</div>
+<div class="row gap-2">
+<button class="btn" data-variant="outline" type="button" id="btnBackup">Exportar dados</button>
+<button class="btn" data-variant="ghost" type="button" id="btnReset">Restaurar exemplo</button>
+</div>
+</header>
+
+<div class="alert" id="endpointAlert" data-variant="destructive" hidden>
+<div>
+<strong>URL do Apps Script não configurada.</strong>
+<span>As informações ficam apenas em cache neste navegador. Cole a URL do Web App em APPS_SCRIPT_URL no topo de script.js (instruções nos comentários).</span>
+</div>
+</div>
+
+<!-- SEÇÃO 1: TURMAS E ALUNOS -->
+<section id="sec-cadastro" class="section active">
+<div class="kpi-row" id="kpisCadastro"></div>
+
+<div class="grid-2">
+<div class="card">
+<header>
+<h2>Turmas</h2>
+<p>Cadastre turmas pelo nome, como "3º A - Matutino". Selecione uma para ver os alunos.</p>
+</header>
+<section class="stack gap-3">
+<form id="formTurma" class="inline-form" autocomplete="off">
+<div class="field grow">
+<label for="turmaNome">Nome da turma</label>
+<input class="input" id="turmaNome" type="text" maxlength="60" placeholder="Ex.: 3º A - Matutino" required>
+<span class="muted text-xs">Use um nome curto e único para facilitar a seleção.</span>
+</div>
+<button class="btn" type="submit">Adicionar turma</button>
+</form>
+<ul class="list" id="listaTurmas"></ul>
+</section>
+</div>
+
+<div class="card">
+<header>
+<h2 id="tituloAlunos">Alunos</h2>
+<p id="subtituloAlunos">Selecione uma turma à esquerda para gerenciar seus alunos.</p>
+</header>
+<section class="stack gap-3">
+<form id="formAluno" class="inline-form" autocomplete="off">
+<div class="field grow">
+<label for="alunoNome">Nome do aluno</label>
+<input class="input" id="alunoNome" type="text" maxlength="80" placeholder="Ex.: Ana Beatriz Souza" required>
+<span class="muted text-xs">Digite o nome completo, como consta na matrícula.</span>
+</div>
+<button class="btn" type="submit" id="btnAddAluno">Adicionar aluno</button>
+</form>
+<ul class="list" id="listaAlunos"></ul>
+</section>
+</div>
+</div>
+</section>
+
+<!-- SEÇÃO 2: REGISTRO DE FALTAS -->
+<section id="sec-registro" class="section">
+<div class="grid-reg">
+<div class="card">
+<header>
+<h2>Calendário</h2>
+<p>Clique em um dia para selecioná-lo. O dia de hoje aparece destacado.</p>
+</header>
+<section>
+<div class="cal-head">
+<button class="btn" data-variant="outline" data-size="icon" type="button" id="calPrev" aria-label="Mês anterior">‹</button>
+<strong id="calTitle"></strong>
+<button class="btn" data-variant="outline" data-size="icon" type="button" id="calNext" aria-label="Próximo mês">›</button>
+</div>
+<div class="cal-week">
+<span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
+</div>
+<div class="cal-grid" id="calGrid" role="grid" aria-label="Calendário de faltas"></div>
+<div class="row gap-2 mt-3">
+<span class="badge" data-variant="secondary">Hoje</span>
+<span class="badge" data-variant="outline">Dia selecionado</span>
+</div>
+</section>
+</div>
+
+<div class="card">
+<header>
+<h2>Chamada do dia</h2>
+<p>Todos começam como presentes. Toque no interruptor para marcar a falta.</p>
+</header>
+<section class="stack gap-3">
+<div class="field">
+<label for="selTurma">Turma</label>
+<select class="input" id="selTurma"></select>
+<span class="muted text-xs">Ao escolher a turma, a lista de alunos é carregada automaticamente.</span>
+</div>
+<div class="row between">
+<div class="row gap-2">
+<span class="badge" data-variant="secondary" id="badgeData">--</span>
+<span class="badge" data-variant="outline" id="badgeContagem">0 alunos</span>
+</div>
+<div class="row gap-2">
+<button class="btn" data-variant="ghost" data-size="sm" type="button" id="btnTodosPresentes">Marcar todos presentes</button>
+</div>
+</div>
+<ul class="chamada" id="listaChamada"></ul>
+<div class="resumo-dia" id="resumoDia"></div>
+<div class="row gap-2">
+<button class="btn grow" type="button" id="btnConfirmarFaltas">Confirmar faltas do dia</button>
+<button class="btn" data-variant="outline" type="button" id="btnCopiarResumo">Copiar resumo</button>
+</div>
+</section>
+</div>
+</div>
+</section>
+
+<!-- SEÇÃO 3: CONSULTA E IMPRESSÃO -->
+<section id="sec-consulta" class="section">
+<div class="kpi-row" id="kpisConsulta"></div>
+
+<div class="card no-print">
+<header>
+<h2>Filtros da consulta</h2>
+<p>Escolha a turma e o período. Deixe a turma em "Todas" para ver toda a escola.</p>
+</header>
+<section class="stack gap-3">
+<div class="cols-4 gap-3">
+<div class="field">
+<label for="fTurma">Turma</label>
+<select class="input" id="fTurma"></select>
+</div>
+<div class="field">
+<label for="fTipo">Tipo de período</label>
+<select class="input" id="fTipo">
+<option value="dia">Dia específico</option>
+<option value="mes">Mês</option>
+<option value="intervalo">Intervalo de datas</option>
+</select>
+</div>
+<div class="field" id="wrapDia">
+<label for="fDia">Dia</label>
+<input class="input" type="date" id="fDia">
+</div>
+<div class="field" id="wrapMes" hidden>
+<label for="fMes">Mês</label>
+<input class="input" type="month" id="fMes">
+</div>
+<div class="field" id="wrapIni" hidden>
+<label for="fIni">Data inicial</label>
+<input class="input" type="date" id="fIni">
+</div>
+<div class="field" id="wrapFim" hidden>
+<label for="fFim">Data final</label>
+<input class="input" type="date" id="fFim">
+</div>
+</div>
+<div class="row gap-2">
+<button class="btn" type="button" id="btnBuscar">Buscar faltosos</button>
+<button class="btn" data-variant="outline" type="button" id="btnImprimir">Imprimir em PDF</button>
+<span class="muted text-xs">Na janela de impressão, escolha "Salvar como PDF" como destino.</span>
+</div>
+</section>
+</div>
+
+<div class="card" id="areaImpressao">
+<div class="print-only print-head">
+<h2>Relatório de Faltosos - CEMJOS</h2>
+<p id="printResumo"></p>
+</div>
+<header class="no-print">
+<h2>Alunos faltosos</h2>
+<p id="resultadoResumo">Preencha os filtros e clique em buscar.</p>
+</header>
+<section>
+<div class="table-wrap">
+<table class="shell-table">
+<thead>
+<tr>
+<th>Data</th>
+<th>Turma</th>
+<th>Aluno</th>
+<th class="num">Total de faltas</th>
+</tr>
+</thead>
+<tbody id="tbodyFaltosos"></tbody>
+</table>
+</div>
+<p class="muted text-xs mt-2" id="tabelaVazia" hidden>Nenhuma falta encontrada para o período escolhido.</p>
+</section>
+</div>
+</section>
+
+<footer class="shell-footer no-print">
+<span>Cache local no navegador (localStorage). Dados sincronizados com a planilha Frequencia_CEMJOS_2026 via Google Apps Script.</span>
+</footer>
+</div>
+</div>
+
+<script>
+/* ============================================================
+Sistema de Controle de Faltas de Alunos - CEMJOS
+Script principal: turmas, alunos, faltas, sincronização com Google Sheets.
+
+CONFIGURAÇÃO: cole na constante APPS_SCRIPT_URL a URL do Web App.
+
+PASSO A PASSO (resumo para o README):
+1. Abra a planilha https://docs.google.com/spreadsheets/d/17tTh9a1Ql1qehN8Ydafdym4UN_XwinukLKh07TBqhag/edit
+2. Extensões > Apps Script. Apague o conteúdo padrão e cole o Code.gs abaixo.
+3. Salve. Implantar > Nova implantação > Tipo: Aplicativo da Web.
+4. Executar como: Eu. Quem tem acesso: Qualquer pessoa. Clique em Implantar.
+5. Copie a URL (terminada em /exec) e cole em APPS_SCRIPT_URL abaixo.
+6. Após qualquer alteração no script, crie uma NOVA VERSÃO da implantação.
+7. A conta usada precisa ser editora da planilha.
+
+CODE.GS (copie para o Apps Script; cada linha é código real):
+const PLANILHA_ID = "17tTh9a1Ql1qehN8Ydafdym4UN_XwinukLKh07TBqhag";
+const ABAS = {
+Turmas: ["ID_Turma", "Nome_Turma", "Criado_em"],
+Alunos: ["ID_Aluno", "ID_Turma", "Nome_Aluno", "Criado_em"],
+Faltas: ["Data", "Turma", "ID_Turma", "Aluno", "ID_Aluno", "Status", "Registrado_em"]
+};
+function getPlanilha() {
+const ss = SpreadsheetApp.openById(PLANILHA_ID);
+Object.keys(ABAS).forEach(function (nome) {
+let aba = ss.getSheetByName(nome);
+if (!aba) aba = ss.insertSheet(nome);
+if (aba.getLastRow() === 0) aba.getRange(1, 1, 1, ABAS[nome].length).setValues([ABAS[nome]]);
+});
+return ss;
+}
+function lerAba(ss, nome) {
+const aba = ss.getSheetByName(nome);
+const v = aba.getDataRange().getValues();
+if (v.length <= 1) return [];
+const cab = v[0];
+return v.slice(1).filter(function (l) { return l[0] !== ""; }).map(function (l) {
+const o = {};
+cab.forEach(function (c, i) { o[c] = l[i]; });
+return o;
+});
+}
+function reescreverAba(ss, nome, linhas) {
+const aba = ss.getSheetByName(nome);
+aba.clearContents();
+const cab = ABAS[nome];
+const dados = [cab].concat(linhas.map(function (l) { return cab.map(function (c) { return l[c]; }); }));
+aba.getRange(1, 1, dados.length, cab.length).setValues(dados);
+}
+function doGet() {
+try {
+const ss = getPlanilha();
+const payload = {
+turmas: lerAba(ss, "Turmas"),
+alunos: lerAba(ss, "Alunos"),
+faltas: lerAba(ss, "Faltas")
+};
+return json({ success: true, data: payload });
+} catch (err) {
+return json({ success: false, message: String(err) });
+}
+}
+function doPost(e) {
+const lock = LockService.getScriptLock();
+try {
+lock.waitLock(20000);
+const ss = getPlanilha();
+const body = JSON.parse(e.postData.contents);
+const acao = body.action;
+let turmas = lerAba(ss, "Turmas");
+let alunos = lerAba(ss, "Alunos");
+let faltas = lerAba(ss, "Faltas");
+const agora = new Date().toISOString();
+if (acao === "salvarTurma") {
+const t = body.turma;
+const existe = turmas.some(function (x) { return x.ID_Turma === t.id; });
+if (existe) {
+turmas = turmas.map(function (x) { return x.ID_Turma === t.id ? { ID_Turma: t.id, Nome_Turma: t.nome, Criado_em: x.Criado_em } : x; });
+} else {
+turmas.push({ ID_Turma: t.id, Nome_Turma: t.nome, Criado_em: agora });
+}
+reescreverAba(ss, "Turmas", turmas);
+return json({ success: true, message: "Turma salva." });
+}
+if (acao === "excluirTurma") {
+const id = body.id;
+turmas = turmas.filter(function (x) { return x.ID_Turma !== id; });
+alunos = alunos.filter(function (x) { return x.ID_Turma !== id; });
+faltas = faltas.filter(function (x) { return x.ID_Turma !== id; });
+reescreverAba(ss, "Turmas", turmas);
+reescreverAba(ss, "Alunos", alunos);
+reescreverAba(ss, "Faltas", faltas);
+return json({ success: true, message: "Turma excluída." });
+}
+if (acao === "salvarAluno") {
+const a = body.aluno;
+const existe = alunos.some(function (x) { return x.ID_Aluno === a.id; });
+if (existe) {
+alunos = alunos.map(function (x) { return x.ID_Aluno === a.id ? { ID_Aluno: a.id, ID_Turma: a.turmaId, Nome_Aluno: a.nome, Criado_em: x.Criado_em } : x; });
+} else {
+alunos.push({ ID_Aluno: a.id, ID_Turma: a.turmaId, Nome_Aluno: a.nome, Criado_em: agora });
+}
+reescreverAba(ss, "Alunos", alunos);
+return json({ success: true, message: "Aluno salvo." });
+}
+if (acao === "excluirAluno") {
+const id = body.id;
+alunos = alunos.filter(function (x) { return x.ID_Aluno !== id; });
+faltas = faltas.filter(function (x) { return x.ID_Aluno !== id; });
+reescreverAba(ss, "Alunos", alunos);
+reescreverAba(ss, "Faltas", faltas);
+return json({ success: true, message: "Aluno excluído." });
+}
+if (acao === "salvarFaltas") {
+const turma = body.turma;
+const data = body.data;
+faltas = faltas.filter(function (x) { return !(x.ID_Turma === turma.id && String(x.Data) === data); });
+body.lista.forEach(function (r) {
+faltas.push({
+Data: data,
+Turma: turma.nome,
+ID_Turma: turma.id,
+Aluno: r.nome,
+ID_Aluno: r.id,
+Status: r.status,
+Registrado_em: agora
+});
+});
+reescreverAba(ss, "Faltas", faltas);
+return json({ success: true, message: "Chamada salva." });
+}
+return json({ success: false, message: "Ação desconhecida: " + acao });
+} catch (err) {
+return json({ success: false, message: String(err) });
+} finally {
+try { lock.releaseLock(); } catch (x) {}
+}
+}
+function json(obj) {
+return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+============================================================ */
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyn3nr5rRYko0rtDksCoQk_5r2Zim9zLdevXpHkVI9NcWca4HQTnJXA-olBN30lhfn2/exec";
+
+const PLANILHA_ID = "17tTh9a1Ql1qehN8Ydafdym4UN_XwinukLKh07TBqhag";
+const PLANILHA_URL = "https://docs.google.com/spreadsheets/d/" + PLANILHA_ID + "/edit?gid=0#gid=0";
+
+const CHAVE_DADOS = "cemjos_faltas_v1";
+const CHAVE_FILA = "cemjos_fila_pendente_v1";
+const MESES = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
+
+/* ---------- Utilidades ---------- */
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+function gerarId(prefixo) {
+return prefixo + "_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+function formatarDataBR(iso) {
+if (!iso) return "--";
+const [a, m, d] = iso.split("-");
+return d + "/" + m + "/" + a;
+}
+
+function dataISO(d) {
+const y = d.getFullYear();
+const m = String(d.getMonth() + 1).padStart(2, "0");
+const day = String(d.getDate()).padStart(2, "0");
+return y + "-" + m + "-" + day;
+}
+
+function escaparHTML(texto) {
+return String(texto).replace(/[&<>"']/g, (c) => ({
+"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+}[c]));
+}
+
+function hojeISO() {
+return dataISO(new Date());
+}
+
+/* ---------- Estado e persistência (localStorage via skipStore) ---------- */
+function estadoInicial() {
+const alunosA = ["Ana Beatriz Souza","Bruno Henrique Lima","Camila Ferreira","Diego Martins","Eduarda Rocha","Felipe Araújo","Gabriela Nunes","Heitor Pires"];
+const alunosB = ["Isabela Costa","João Pedro Alves","Larissa Mendes","Mateus Oliveira","Nicole Barbosa","Otávio Ribeiro","Priscila Moura","Rafael Teixeira"];
+const alunosC = ["Samuel Cardoso","Tainá Brito","Ugo Duarte","Valentina Freitas","Wesley Cunha","Yasmin Lopes","Zé Carlos Dias","Alice Monteiro"];
+
+const turmas = [
+{ id: "t1", nome: "3º A - Matutino", alunos: alunosA.map((n, i) => ({ id: "a1" + i, nome: n })) },
+{ id: "t2", nome: "2º B - Vespertino", alunos: alunosB.map((n, i) => ({ id: "a2" + i, nome: n })) },
+{ id: "t3", nome: "1º C - Noturno", alunos: alunosC.map((n, i) => ({ id: "a3" + i, nome: n })) }
+];
+
+// Faltas de exemplo: data -> { turmaId: [alunoId, ...] }
+const faltas = {};
+const hoje = new Date();
+const exemplos = [
+{ dias: 1, turma: "t1", alunos: ["a10", "a13"] },
+{ dias: 3, turma: "t2", alunos: ["a21"] },
+{ dias: 5, turma: "t1", alunos: ["a10", "a16"] },
+{ dias: 8, turma: "t3", alunos: ["a30", "a35"] },
+{ dias: 12, turma: "t2", alunos: ["a21", "a25"] },
+{ dias: 15, turma: "t1", alunos: ["a13"] },
+{ dias: 19, turma: "t3", alunos: ["a30"] },
+{ dias: 22, turma: "t2", alunos: ["a25"] },
+{ dias: 26, turma: "t1", alunos: ["a10"] }
+];
+exemplos.forEach((ex) => {
+const d = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - ex.dias);
+const iso = dataISO(d);
+faltas[iso] = faltas[iso] || {};
+faltas[iso][ex.turma] = ex.alunos;
+});
+
+return { turmas, faltas, turmaSelecionada: "t1" };
+}
+
+const store = window.skipStore(CHAVE_DADOS, estadoInicial());
+let estado = store.get();
+if (!estado || !Array.isArray(estado.turmas)) {
+estado = estadoInicial();
+store.set(estado);
+}
+const filaStore = window.skipStore(CHAVE_FILA, []);
+
+function salvar() {
+store.set(estado);
+}
+
+/* ---------- Comunicação com o Apps Script ---------- */
+function endpointConfigurado() {
+return APPS_SCRIPT_URL && APPS_SCRIPT_URL.indexOf("COLE_AQUI") === -1;
+}
+
+function definirStatus(texto, tipo) {
+const el = $("#sheetStatus");
+el.textContent = texto;
+el.dataset.tipo = tipo || "";
+}
+
+function enviarAcao(payload) {
+return fetch(APPS_SCRIPT_URL, {
+method: "POST",
+headers: { "Content-Type": "text/plain;charset=utf-8" },
+body: JSON.stringify(payload)
+}).then((r) => r.json()).then((res) => {
+if (!res.success) throw new Error(res.message || "Falha no servidor");
+return res;
+});
+}
+
+/* Envia a operação; se falhar, guarda na fila pendente para reenvio. */
+function operar(payload, mensagemOk) {
+if (!endpointConfigurado()) {
+window.skipUI.toast("Salvo localmente. Configure APPS_SCRIPT_URL para enviar à planilha.", { type: "error", title: "Sem planilha" });
+return Promise.resolve(false);
+}
+definirStatus("Sincronizando...", "sync");
+return enviarAcao(payload).then(() => {
+definirStatus("Salvo na planilha", "ok");
+if (mensagemOk) window.skipUI.toast(mensagemOk, { type: "success" });
+return true;
+}).catch(() => {
+filaStore.update((f) => (f || []).concat([payload]));
+definirStatus("Erro ao conectar — dados salvos localmente", "erro");
+window.skipUI.toast("Sem conexão. Operação guardada e será reenviada.", { type: "error" });
+return false;
+});
+}
+
+/* Reenvia a fila pendente em ordem. */
+function sincronizarFila() {
+if (!endpointConfigurado()) return Promise.resolve(false);
+const fila = filaStore.get() || [];
+if (fila.length === 0) return Promise.resolve(true);
+definirStatus("Sincronizando...", "sync");
+let restantes = fila.slice();
+const proximo = () => {
+if (restantes.length === 0) {
+filaStore.set([]);
+definirStatus("Salvo na planilha", "ok");
+return Promise.resolve(true);
+}
+return enviarAcao(restantes[0]).then(() => {
+restantes = restantes.slice(1);
+filaStore.set(restantes);
+return proximo();
+});
+};
+return proximo().catch(() => {
+filaStore.set(restantes);
+definirStatus("Erro ao conectar — dados salvos localmente", "erro");
+return false;
+});
+}
+
+/* Carrega do Apps Script (doGet) e sincroniza o cache local. */
+function carregarDaPlanilha() {
+if (!endpointConfigurado()) {
+definirStatus("Planilha não configurada — cache local", "erro");
+return Promise.resolve(false);
+}
+definirStatus("Sincronizando...", "sync");
+return fetch(APPS_SCRIPT_URL).then((r) => r.json()).then((res) => {
+if (!res.success) throw new Error(res.message);
+const d = res.data;
+const turmas = (d.turmas || []).map((t) => ({
+id: t.ID_Turma, nome: t.Nome_Turma, alunos: []
+}));
+(d.alunos || []).forEach((a) => {
+const t = turmas.find((x) => x.id === a.ID_Turma);
+if (t) t.alunos.push({ id: a.ID_Aluno, nome: a.Nome_Aluno });
+});
+const faltasMap = {};
+(d.faltas || []).forEach((f) => {
+const data = normalizarData(f.Data);
+if (f.Status !== "FALTOU") return;
+faltasMap[data] = faltasMap[data] || {};
+faltasMap[data][f.ID_Turma] = faltasMap[data][f.ID_Turma] || [];
+faltasMap[data][f.ID_Turma].push(f.ID_Aluno);
+});
+if (turmas.length > 0 || (filaStore.get() || []).length === 0) {
+estado = { turmas, faltas: faltasMap, turmaSelecionada: turmas[0] ? turmas[0].id : null };
+salvar();
+}
+return sincronizarFila().then(() => true);
+}).catch(() => {
+definirStatus("Erro ao conectar — dados salvos localmente", "erro");
+return false;
+});
+}
+
+function normalizarData(valor) {
+if (!valor) return "";
+const s = String(valor);
+if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+const d = new Date(valor);
+return isNaN(d) ? s : dataISO(d);
+}
+
+/* ---------- Estado da chamada e calendário ---------- */
+let dataSelecionada = hojeISO();
+let mesCalendario = new Date();
+let chamadaAtual = {}; // alunoId -> true (faltou) / false (presente)
+
+/* ---------- Navegação entre seções ---------- */
+function mostrarSecao(id) {
+$$(".section").forEach((s) => s.classList.toggle("active", s.id === id));
+$$(".nav-link").forEach((b) => b.classList.toggle("active", b.dataset.target === id));
+if (id === "sec-consulta") atualizarKpisConsulta();
+}
+
+$$(".nav-link").forEach((btn) => {
+btn.addEventListener("click", () => mostrarSecao(btn.dataset.target));
+});
+
+/* ---------- Seção 1: Turmas e alunos ---------- */
+function turmaAtual() {
+return estado.turmas.find((t) => t.id === estado.turmaSelecionada) || null;
+}
+
+function renderTurmas() {
+const lista = $("#listaTurmas");
+lista.innerHTML = "";
+if (estado.turmas.length === 0) {
+lista.innerHTML = '<li class="empty-msg">Nenhuma turma cadastrada ainda.</li>';
+} else {
+estado.turmas.forEach((t) => {
+const li = document.createElement("li");
+li.className = t.id === estado.turmaSelecionada ? "selected" : "";
+li.innerHTML =
+'<div class="list-main" data-id="' + t.id + '">' +
+"<strong>" + escaparHTML(t.nome) + "</strong>" +
+"<small>" + t.alunos.length + " aluno(s)</small></div>" +
+'<div class="row-actions">' +
+'<button class="btn" data-variant="ghost" data-size="sm" type="button" data-act="editar-turma" data-id="' + t.id + '" aria-label="Editar turma">Editar</button>' +
+'<button class="btn" data-variant="destructive" data-size="sm" type="button" data-act="excluir-turma" data-id="' + t.id + '" aria-label="Excluir turma">Excluir</button>' +
+"</div>";
+lista.appendChild(li);
+});
+}
+atualizarSelects();
+renderAlunos();
+atualizarKpisCadastro();
+$("#navCountClasses").textContent = estado.turmas.length;
+}
+
+function renderAlunos() {
+const lista = $("#listaAlunos");
+const t = turmaAtual();
+lista.innerHTML = "";
+$("#btnAddAluno").disabled = !t;
+if (!t) {
+$("#tituloAlunos").textContent = "Alunos";
+$("#subtituloAlunos").textContent = "Selecione uma turma à esquerda para gerenciar seus alunos.";
+lista.innerHTML = '<li class="empty-msg">Nenhuma turma selecionada.</li>';
+return;
+}
+$("#tituloAlunos").textContent = "Alunos - " + t.nome;
+$("#subtituloAlunos").textContent = t.alunos.length + " aluno(s) cadastrado(s). Edite o nome ou remova quando necessário.";
+if (t.alunos.length === 0) {
+lista.innerHTML = '<li class="empty-msg">Nenhum aluno nesta turma. Adicione o primeiro acima.</li>';
+return;
+}
+t.alunos.forEach((a) => {
+const li = document.createElement("li");
+li.innerHTML =
+'<div class="list-main"><strong>' + escaparHTML(a.nome) + "</strong></div>" +
+'<div class="row-actions">' +
+'<button class="btn" data-variant="ghost" data-size="sm" type="button" data-act="editar-aluno" data-id="' + a.id + '" aria-label="Editar aluno">Editar</button>' +
+'<button class="btn" data-variant="destructive" data-size="sm" type="button" data-act="excluir-aluno" data-id="' + a.id + '" aria-label="Excluir aluno">Excluir</button>' +
+"</div>";
+lista.appendChild(li);
+});
+}
+
+function atualizarSelects() {
+const opcoes = estado.turmas.length
+? estado.turmas.map((t) => '<option value="' + t.id + '">' + escaparHTML(t.nome) + "</option>").join("")
+: '<option value="">Cadastre uma turma</option>';
+$("#selTurma").innerHTML = opcoes;
+$("#selTurma").value = estado.turmaSelecionada || "";
+$("#fTurma").innerHTML = '<option value="todas">Todas as turmas</option>' +
+estado.turmas.map((t) => '<option value="' + t.id + '">' + escaparHTML(t.nome) + "</option>").join("");
+}
+
+function atualizarKpisCadastro() {
+const totalAlunos = estado.turmas.reduce((s, t) => s + t.alunos.length, 0);
+const hojeFaltas = Object.keys(estado.faltas[hojeISO()] || {}).reduce(
+(s, tid) => s + (estado.faltas[hojeISO()][tid] || []).length, 0);
+const kpis = [
+{ label: "Turmas cadastradas", value: estado.turmas.length, format: "num", hint: "Total de turmas ativas" },
+{ label: "Alunos matriculados", value: totalAlunos, format: "num", hint: "Soma de todas as turmas" },
+{ label: "Faltas registradas hoje", value: hojeFaltas, format: "num", hint: "Dia " + formatarDataBR(hojeISO()) }
+];
+window.skipUI.kpis($("#kpisCadastro"), kpis);
+}
+
+function adicionarTurma(ev) {
+ev.preventDefault();
+const nome = $("#turmaNome").value.trim();
+if (!nome) return;
+if (estado.turmas.some((t) => t.nome.toLowerCase() === nome.toLowerCase())) {
+window.skipUI.toast("Já existe uma turma com este nome.", { type: "error" });
+return;
+}
+const nova = { id: gerarId("t"), nome, alunos: [] };
+estado.turmas.push(nova);
+estado.turmaSelecionada = nova.id;
+salvar();
+$("#turmaNome").value = "";
+renderTurmas();
+operar({ action: "salvarTurma", turma: { id: nova.id, nome: nova.nome } },
+"Turma \"" + nome + "\" cadastrada com sucesso!");
+}
+
+function adicionarAluno(ev) {
+ev.preventDefault();
+const t = turmaAtual();
+if (!t) return;
+const nome = $("#alunoNome").value.trim();
+if (!nome) return;
+if (t.alunos.some((a) => a.nome.toLowerCase() === nome.toLowerCase())) {
+window.skipUI.toast("Este aluno já está nesta turma.", { type: "error" });
+return;
+}
+const novoAluno = { id: gerarId("a"), nome };
+t.alunos.push(novoAluno);
+salvar();
+$("#alunoNome").value = "";
+renderTurmas();
+renderChamada();
+operar({ action: "salvarAluno", aluno: { id: novoAluno.id, turmaId: t.id, nome } },
+"Aluno adicionado à turma " + t.nome + ".");
+}
+
+function abrirConfirmacao(titulo, mensagem, aoConfirmar) {
+const dlg = document.getElementById("dlgConfirmar");
+dlg.querySelector("#dlgTitulo").textContent = titulo;
+dlg.querySelector("#dlgMensagem").textContent = mensagem;
+const btnOk = dlg.querySelector("#dlgOk");
+const novo = btnOk.cloneNode(true);
+btnOk.parentNode.replaceChild(novo, btnOk);
+novo.addEventListener("click", () => {
+dlg.close();
+aoConfirmar();
+});
+dlg.showModal();
+}
+
+function criarDialogoConfirmacao() {
+const dlg = document.createElement("dialog");
+dlg.className = "dialog";
+dlg.id = "dlgConfirmar";
+dlg.innerHTML =
+'<div><header><h2 id="dlgTitulo">Confirmar</h2><p id="dlgMensagem"></p></header>' +
+'<footer class="row gap-2 mt-4" style="justify-content:flex-end">' +
+'<button class="btn" data-variant="outline" type="button" data-dialog-close>Cancelar</button>' +
+'<button class="btn" data-variant="destructive" type="button" id="dlgOk">Excluir</button>' +
+"</footer></div>";
+document.body.appendChild(dlg);
+}
+
+function editarNome(tipo, id) {
+const t = turmaAtual();
+let alvo = null;
+if (tipo === "turma") alvo = estado.turmas.find((x) => x.id === id);
+else if (t) alvo = t.alunos.find((x) => x.id === id);
+if (!alvo) return;
+const novo = window.prompt(tipo === "turma" ? "Novo nome da turma:" : "Novo nome do aluno:", alvo.nome);
+if (novo === null) return;
+const limpo = novo.trim();
+if (!limpo) {
+window.skipUI.toast("O nome não pode ficar vazio.", { type: "error" });
+return;
+}
+alvo.nome = limpo;
+salvar();
+renderTurmas();
+renderChamada();
+if (tipo === "turma") {
+operar({ action: "salvarTurma", turma: { id: alvo.id, nome: limpo } }, "Nome da turma atualizado.");
+} else {
+operar({ action: "salvarAluno", aluno: { id: alvo.id, turmaId: t.id, nome: limpo } }, "Nome do aluno atualizado.");
+}
+}
+
+function excluirTurma(id) {
+const t = estado.turmas.find((x) => x.id === id);
+if (!t) return;
+abrirConfirmacao(
+"Excluir turma?",
+"A turma \"" + t.nome + "\" e todos os seus alunos serão removidos. Esta ação não pode ser desfeita.",
+() => {
+estado.turmas = estado.turmas.filter((x) => x.id !== id);
+Object.keys(estado.faltas).forEach((d) => { delete estado.faltas[d][id]; });
+if (estado.turmaSelecionada === id) estado.turmaSelecionada = estado.turmas[0] ? estado.turmas[0].id : null;
+salvar();
+renderTurmas();
+renderChamada();
+operar({ action: "excluirTurma", id }, "Turma excluída.");
+}
+);
+}
+
+function excluirAluno(id) {
+const t = turmaAtual();
+const a = t ? t.alunos.find((x) => x.id === id) : null;
+if (!a) return;
+abrirConfirmacao(
+"Excluir aluno?",
+"O aluno \"" + a.nome + "\" será removido da turma " + t.nome + ".",
+() => {
+t.alunos = t.alunos.filter((x) => x.id !== id);
+salvar();
+renderTurmas();
+renderChamada();
+operar({ action: "excluirAluno", id }, "Aluno excluído.");
+}
+);
+}
+
+$("#formTurma").addEventListener("submit", adicionarTurma);
+$("#formAluno").addEventListener("submit", adicionarAluno);
+
+$("#listaTurmas").addEventListener("click", (ev) => {
+const btn = ev.target.closest("button[data-act]");
+if (btn) {
+const id = btn.dataset.id;
+if (btn.dataset.act === "editar-turma") editarNome("turma", id);
+if (btn.dataset.act === "excluir-turma") excluirTurma(id);
+return;
+}
+const main = ev.target.closest(".list-main");
+if (main) {
+estado.turmaSelecionada = main.dataset.id;
+salvar();
+renderTurmas();
+renderChamada();
+}
+});
+
+$("#listaAlunos").addEventListener("click", (ev) => {
+const btn = ev.target.closest("button[data-act]");
+if (!btn) return;
+if (btn.dataset.act === "editar-aluno") editarNome("aluno", btn.dataset.id);
+if (btn.dataset.act === "excluir-aluno") excluirAluno(btn.dataset.id);
+});
+
+/* ---------- Seção 2: Calendário ---------- */
+function renderCalendario() {
+const ano = mesCalendario.getFullYear();
+const mes = mesCalendario.getMonth();
+$("#calTitle").textContent = MESES[mes] + " de " + ano;
+const primeiro = new Date(ano, mes, 1).getDay();
+const diasNoMes = new Date(ano, mes + 1, 0).getDate();
+const diasMesAnt = new Date(ano, mes, 0).getDate();
+const grid = $("#calGrid");
+grid.innerHTML = "";
+const hoje = hojeISO();
+
+for (let i = 0; i < 42; i++) {
+let dia, mesRef, anoRef, fora = false;
+if (i < primeiro) {
+dia = diasMesAnt - primeiro + i + 1;
+mesRef = mes - 1; anoRef = ano; fora = true;
+} else if (i >= primeiro + diasNoMes) {
+dia = i - (primeiro + diasNoMes) + 1;
+mesRef = mes + 1; anoRef = ano; fora = true;
+} else {
+dia = i - primeiro + 1;
+mesRef = mes; anoRef = ano;
+}
+const dt = new Date(anoRef, mesRef, dia);
+const iso = dataISO(dt);
+const btn = document.createElement("button");
+btn.type = "button";
+btn.className = "cal-day";
+btn.textContent = dt.getDate();
+btn.setAttribute("role", "gridcell");
+btn.setAttribute("aria-label", formatarDataBR(iso));
+if (fora) btn.classList.add("outside");
+if (iso === hoje) btn.classList.add("today");
+if (iso === dataSelecionada) btn.classList.add("selected");
+if (estado.faltas[iso] && Object.values(estado.faltas[iso]).some((l) => l.length > 0)) btn.classList.add("has-faltas");
+btn.addEventListener("click", () => {
+dataSelecionada = iso;
+if (fora) mesCalendario = new Date(anoRef, mesRef, 1);
+renderCalendario();
+carregarChamada();
+});
+grid.appendChild(btn);
+}
+}
+
+$("#calPrev").addEventListener("click", () => {
+mesCalendario = new Date(mesCalendario.getFullYear(), mesCalendario.getMonth() - 1, 1);
+renderCalendario();
+});
+$("#calNext").addEventListener("click", () => {
+mesCalendario = new Date(mesCalendario.getFullYear(), mesCalendario.getMonth() + 1, 1);
+renderCalendario();
+});
+
+/* ---------- Seção 2: Chamada do dia ---------- */
+function carregarChamada() {
+const t = turmaAtual();
+chamadaAtual = {};
+if (t) {
+const registradas = (estado.faltas[dataSelecionada] || {})[t.id] || [];
+t.alunos.forEach((a) => { chamadaAtual[a.id] = registradas.includes(a.id); });
+}
+$("#badgeData").textContent = formatarDataBR(dataSelecionada);
+renderChamada();
+}
+
+function renderChamada() {
+const lista = $("#listaChamada");
+const t = turmaAtual();
+lista.innerHTML = "";
+if (!t) {
+lista.innerHTML = '<li class="empty-msg">Cadastre uma turma para iniciar a chamada.</li>';
+$("#badgeContagem").textContent = "0 alunos";
+$("#resumoDia").textContent = "";
+return;
+}
+if (t.alunos.length === 0) {
+lista.innerHTML = '<li class="empty-msg">Esta turma ainda não tem alunos cadastrados.</li>';
+}
+t.alunos.forEach((a) => {
+const faltou = !!chamadaAtual[a.id];
+const li = document.createElement("li");
+li.className = faltou ? "faltou" : "";
+li.innerHTML =
+'<span class="nome">' + escaparHTML(a.nome) + "</span>" +
+'<div class="toggle-wrap">' +
+'<span class="toggle-label ' + (faltou ? "absent" : "present") + '">' + (faltou ? "FALTOU" : "PRESENTE") + "</span>" +
+'<button type="button" class="toggle ' + (faltou ? "off" : "") + '" role="switch" aria-checked="' + (!faltou) + '" aria-label="Marcar presença de ' + escaparHTML(a.nome) + '" data-id="' + a.id + '">' +
+'<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"></svg>' +
+"</button></div>";
+lista.appendChild(li);
+});
+$("#badgeContagem").textContent = t.alunos.length + " alunos";
+atualizarResumoDia();
+}
+
+function atualizarResumoDia() {
+const t = turmaAtual();
+if (!t) return;
+const faltosos = t.alunos.filter((a) => chamadaAtual[a.id]);
+const texto = faltosos.length === 0
+? "Nenhuma falta marcada. Todos os " + t.alunos.length + " alunos estão presentes."
+: faltosos.length + " falta(s) marcada(s): " + faltosos.map((a) => a.nome).join(", ") + ".";
+$("#resumoDia").textContent = texto;
+}
+
+$("#listaChamada").addEventListener("click", (ev) => {
+const btn = ev.target.closest("button.toggle");
+if (!btn) return;
+const id = btn.dataset.id;
+chamadaAtual[id] = !chamadaAtual[id];
+renderChamada();
+});
+
+$("#selTurma").addEventListener("change", (ev) => {
+estado.turmaSelecionada = ev.target.value;
+salvar();
+renderTurmas();
+carregarChamada();
+});
+
+$("#btnTodosPresentes").addEventListener("click", () => {
+Object.keys(chamadaAtual).forEach((k) => { chamadaAtual[k] = false; });
+renderChamada();
+window.skipUI.toast("Todos os alunos marcados como presentes.");
+});
+
+$("#btnCopiarResumo").addEventListener("click", () => {
+const t = turmaAtual();
+if (!t) return;
+const faltosos = t.alunos.filter((a) => chamadaAtual[a.id]).map((a) => a.nome);
+const texto = "Frequência " + t.nome + " - " + formatarDataBR(dataSelecionada) + "\n" +
+(faltosos.length ? "Faltas: " + faltosos.join(", ") : "Sem faltas no dia.");
+navigator.clipboard.writeText(texto).then(
+() => window.skipUI.toast("Resumo copiado para a área de transferência.", { type: "success" }),
+() => window.skipUI.toast("Não foi possível copiar o resumo.", { type: "error" })
+);
+});
+
+$("#btnConfirmarFaltas").addEventListener("click", () => {
+const t = turmaAtual();
+if (!t) {
+window.skipUI.toast("Cadastre e selecione uma turma antes de confirmar.", { type: "error" });
+return;
+}
+const btn = $("#btnConfirmarFaltas");
+if (btn.disabled) return;
+btn.disabled = true;
+const faltosos = t.alunos.filter((a) => chamadaAtual[a.id]).map((a) => a.id);
+if (!estado.faltas[dataSelecionada]) estado.faltas[dataSelecionada] = {};
+estado.faltas[dataSelecionada][t.id] = faltosos;
+salvar();
+
+const lista = t.alunos.map((a) => ({
+id: a.id,
+nome: a.nome,
+status: chamadaAtual[a.id] ? "Faltou" : "Presente"
+}));
+
+operar({
+action: "salvarFaltas",
+turma: { id: t.id, nome: t.nome },
+data: dataSelecionada,
+lista
+}, "Faltas de " + t.nome + " confirmadas.").finally(() => {
+btn.disabled = false;
+renderCalendario();
+atualizarKpisCadastro();
+});
+});
+
+/* ---------- Seção 3: Consulta e impressão ---------- */
+function atualizarKpisConsulta() {
+const linhas = coletarFaltosos(obterFiltros());
+const total = linhas.reduce((s, l) => s + l.total, 0);
+const alunosUnicos = new Set(linhas.map((l) => l.alunoId)).size;
+const kpis = [
+{ label: "Alunos faltosos", value: alunosUnicos, format: "num", hint: "No período filtrado" },
+{ label: "Total de faltas", value: total, format: "num", hint: "Somadas no período" },
+{ label: "Turmas com faltas", value: new Set(linhas.map((l) => l.turmaId)).size, format: "num", hint: "Turmas com ao menos 1 falta" }
+];
+window.skipUI.kpis($("#kpisConsulta"), kpis);
+}
+
+function obterFiltros() {
+const tipo = $("#fTipo").value;
+const f = { turma: $("#fTurma").value, tipo };
+if (tipo === "dia") {
+f.inicio = f.fim = $("#fDia").value;
+} else if (tipo === "mes") {
+const m = $("#fMes").value;
+if (m) {
+const [a, mo] = m.split("-").map(Number);
+f.inicio = dataISO(new Date(a, mo - 1, 1));
+f.fim = dataISO(new Date(a, mo, 0));
+}
+} else {
+f.inicio = $("#fIni").value;
+f.fim = $("#fFim").value;
+}
+return f;
+}
+
+function coletarFaltosos(f) {
+const resultado = {};
+Object.keys(estado.faltas).forEach((data) => {
+if (f.inicio && data < f.inicio) return;
+if (f.fim && data > f.fim) return;
+Object.keys(estado.faltas[data]).forEach((tid) => {
+if (f.turma !== "todas" && f.turma !== tid) return;
+const turma = estado.turmas.find((t) => t.id === tid);
+if (!turma) return;
+(estado.faltas[data][tid] || []).forEach((aid) => {
+const aluno = turma.alunos.find((a) => a.id === aid);
+if (!aluno) return;
+const chave = data + "|" + tid + "|" + aid;
+resultado[chave] = { data, turmaId: tid, turma: turma.nome, alunoId: aid, aluno: aluno.nome, total: 1 };
+});
+});
+});
+// Agrupa por aluno/turma no período: total de faltas
+const porAluno = {};
+Object.values(resultado).forEach((r) => {
+const k = r.turmaId + "|" + r.alunoId;
+if (!porAluno[k]) porAluno[k] = { ...r, datas: [] };
+porAluno[k].datas.push(r.data);
+});
+const linhas = Object.values(porAluno).map((r) => ({
+...r,
+data: r.datas.sort().slice(-1)[0],
+total: r.datas.length
+}));
+return linhas.sort((a, b) => b.total - a.total || a.aluno.localeCompare(b.aluno));
+}
+
+function descreverPeriodo(f) {
+if (f.tipo === "dia") return "Dia " + formatarDataBR(f.inicio);
+if (f.tipo === "mes") {
+if (!f.inicio) return "Mês não informado";
+const [a, m] = f.inicio.split("-").map(Number);
+return MESES[m - 1] + " de " + a;
+}
+return "De " + formatarDataBR(f.inicio) + " a " + formatarDataBR(f.fim);
+}
+
+function buscarFaltosos() {
+const f = obterFiltros();
+if (f.tipo === "dia" && !f.inicio) return window.skipUI.toast("Escolha o dia para a consulta.", { type: "error" });
+if (f.tipo === "mes" && !f.inicio) return window.skipUI.toast("Escolha o mês para a consulta.", { type: "error" });
+if (f.tipo === "intervalo" && (!f.inicio || !f.fim)) return window.skipUI.toast("Informe a data inicial e a final.", { type: "error" });
+if (f.tipo === "intervalo" && f.inicio > f.fim) return window.skipUI.toast("A data inicial não pode ser depois da final.", { type: "error" });
+
+const linhas = coletarFaltosos(f);
+const corpo = $("#tbodyFaltosos");
+corpo.innerHTML = "";
+linhas.forEach((l) => {
+const tr = document.createElement("tr");
+tr.innerHTML =
+"<td>" + formatarDataBR(l.data) + "</td>" +
+"<td>" + escaparHTML(l.turma) + "</td>" +
+"<td>" + escaparHTML(l.aluno) + "</td>" +
+'<td class="num"><span class="badge" data-variant="' + (l.total >= 3 ? "destructive" : "secondary") + '">' + l.total + "</span></td>";
+corpo.appendChild(tr);
+});
+$("#tabelaVazia").hidden = linhas.length > 0;
+const periodo = descreverPeriodo(f);
+const turmaNome = f.turma === "todas" ? "Todas as turmas" : (estado.turmas.find((t) => t.id === f.turma) || {}).nome;
+$("#resultadoResumo").textContent = linhas.length + " aluno(s) faltoso(s) - " + turmaNome + " - " + periodo + ".";
+$("#printResumo").textContent = turmaNome + " | " + periodo + " | Emitido em " + formatarDataBR(hojeISO());
+atualizarKpisConsulta();
+window.skipUI.toast("Consulta concluída: " + linhas.length + " aluno(s) encontrado(s).", { type: "success" });
+}
+
+$("#fTipo").addEventListener("change", () => {
+const t = $("#fTipo").value;
+$("#wrapDia").hidden = t !== "dia";
+$("#wrapMes").hidden = t !== "mes";
+$("#wrapIni").hidden = t !== "intervalo";
+$("#wrapFim").hidden = t !== "intervalo";
+});
+
+$("#btnBuscar").addEventListener("click", buscarFaltosos);
+$("#btnImprimir").addEventListener("click", () => {
+buscarFaltosos();
+window.skipUI.toast("Na janela de impressão, escolha \"Salvar como PDF\".");
+setTimeout(() => window.print(), 250);
+});
+
+/* ---------- Ações extras ---------- */
+$("#btnBackup").addEventListener("click", () => {
+const blob = new Blob([JSON.stringify(estado, null, 2)], { type: "application/json" });
+const a = document.createElement("a");
+a.href = URL.createObjectURL(blob);
+a.download = "backup_faltas_cemjos.json";
+a.click();
+window.skipUI.toast("Backup exportado em JSON.", { type: "success" });
+});
+
+$("#btnReset").addEventListener("click", () => {
+abrirConfirmacao("Restaurar exemplo?", "Todos os dados atuais serão substituídos pelos dados de exemplo.", () => {
+estado = estadoInicial();
+salvar();
+dataSelecionada = hojeISO();
+mesCalendario = new Date();
+renderTurmas();
+renderCalendario();
+carregarChamada();
+window.skipUI.toast("Dados de exemplo restaurados.", { type: "success" });
+});
+});
+
+function atualizarAvisoEndpoint() {
+const ativo = endpointConfigurado();
+$("#endpointAlert").hidden = ativo;
+if (!ativo) definirStatus("Planilha não configurada — cache local", "erro");
+}
+
+/* ---------- Inicialização ---------- */
+document.addEventListener("DOMContentLoaded", () => {
+criarDialogoConfirmacao();
+const hojeInput = hojeISO();
+$("#fDia").value = hojeInput;
+$("#fMes").value = hojeInput.slice(0, 7);
+$("#fIni").value = hojeInput.slice(0, 7) + "-01";
+$("#fFim").value = hojeInput;
+$("#btnSincronizar").addEventListener("click", () => {
+carregarDaPlanilha().then((ok) => {
+renderTurmas();
+renderCalendario();
+carregarChamada();
+atualizarKpisConsulta();
+window.skipUI.toast(ok ? "Sincronização concluída." : "Não foi possível sincronizar.", { type: ok ? "success" : "error" });
+});
+});
+atualizarAvisoEndpoint();
+renderTurmas();
+renderCalendario();
+carregarChamada();
+atualizarKpisConsulta();
+carregarDaPlanilha().then(() => {
+renderTurmas();
+renderCalendario();
+carregarChamada();
+atualizarKpisConsulta();
+});
+});
+
+</script>
+</body>
+</html>
