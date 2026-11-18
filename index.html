@@ -1012,10 +1012,36 @@ document.addEventListener("DOMContentLoaded", () => {
   
   atualizarStatusEndpoint();
 
-  renderTurmas();
-  renderCalendario();
-  carregarChamada();
-  atualizarKpisConsulta();
+  // Busca turmas e alunos direto da planilha se o endpoint estiver ativo
+  if (endpointConfigurado()) {
+    fetch(ENDPOINT_SHEETS)
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.ok && data.turmas && data.turmas.length > 0) {
+          estado.turmas = data.turmas;
+          if (!estado.turmaSelecionada && estado.turmas.length > 0) {
+            estado.turmaSelecionada = estado.turmas[0].id;
+          }
+          salvar();
+        }
+        renderTurmas();
+        renderCalendario();
+        carregarChamada();
+        atualizarKpisConsulta();
+      })
+      .catch(() => {
+        // Fallback caso ocorra erro de rede, carrega do localStorage
+        renderTurmas();
+        renderCalendario();
+        carregarChamada();
+        atualizarKpisConsulta();
+      });
+  } else {
+    renderTurmas();
+    renderCalendario();
+    carregarChamada();
+    atualizarKpisConsulta();
+  }
 });
 </script>
 </body>
