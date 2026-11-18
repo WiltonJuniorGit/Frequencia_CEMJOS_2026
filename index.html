@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sistema de Controle de Faltas de Alunos</title>
+<title>Sistema de Controle de Faltas de Alunos - CEMJOS</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <style>
 :root {
@@ -153,12 +153,26 @@ table.shell-table td.num, table.shell-table th.num { text-align: right; }
 .toaster .toast[data-type="error"] .toast-content { border-left: 3px solid var(--danger); }
 .print-only { display: none; }
 .cols-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.row { display: flex; align-items: center; }
+.between { justify-content: space-between; }
+.gap-2 { gap: 8px; }
+.gap-3 { gap: 12px; }
+.stack { display: flex; flex-direction: column; }
+.grow { flex: 1; }
+.mt-2 { margin-top: 8px; }
+.muted { color: var(--text-muted); }
+.text-sm { font-size: 0.875rem; }
+.text-xs { font-size: 0.75rem; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+.shell-footer { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 0.8rem; color: var(--text-muted); }
+
 @media (max-width: 860px) {
   .app { flex-direction: column; }
   .sidebar { width: 100%; height: auto; position: sticky; top: 0; z-index: 30; flex-direction: row; align-items: center; padding: 10px 12px; border-right: none; border-bottom: 1px solid var(--border); overflow-x: auto; }
   .brand-sub, .sidebar-foot { display: none; }
   .main { padding: 18px 14px; }
   .cols-4 { grid-template-columns: 1fr 1fr; }
+  .grid-reg { grid-template-columns: 1fr; }
 }
 @media print {
   .sidebar, .topbar, .no-print, .section:not(#sec-consulta), .shell-footer, .alert { display: none !important; }
@@ -170,548 +184,293 @@ table.shell-table td.num, table.shell-table th.num { text-align: right; }
 }
 </style>
 <script>
-/* ============================================================
-   COLE ABAIXO A SUA URL DO GOOGLE APPS SCRIPT TERMINADA EM /exec
-============================================================ */
-const ENDPOINT_SHEETS = "https://script.google.com/macros/s/AKfycbwryCS0yiV50ySo6D-ZJbTJzDqU88rB7hhQYITrgfPVq3tCMvKxuoii8CQY1Wo4yyZx/exec";
-
-const PLANILHA_ID = "17tTh9a1Ql1qehN8Ydafdym4UN_XwinukLKh07TBqhag";
-const CHAVE_DADOS = "cemjos_faltas_v2";
-const MESES = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
-
-const $ = (sel) => document.querySelector(sel);
-const $$ = (sel) => Array.from(document.querySelectorAll(sel));
-
-function gerarId(prefixo) {
-  return prefixo + "_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-}
-
-function formatarDataBR(iso) {
-  if (!iso) return "--";
-  const [a, m, d] = iso.split("-");
-  return d + "/" + m + "/" + a;
-}
-
-function dataISO(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return y + "-" + m + "-" + day;
-}
-
-function escaparHTML(texto) {
-  return String(texto).replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-  }[c]));
-}
-
-function hojeISO() { return dataISO(new Date()); }
-
-function estadoInicial() {
-  return {
-    turmas: [
-      {
-        id: "t1",
-        nome: "3º A - Matutino",
-        alunos: [
-          { id: "a10", nome: "Ana Beatriz Souza" },
-          { id: "a11", nome: "Bruno Henrique Lima" }
-        ]
+(function () {
+  "use strict";
+  function resolve(target) { return typeof target === "string" ? document.querySelector(target) : target; }
+  function node(tag, className, text) {
+    var el = document.createElement(tag);
+    if (className) el.className = className;
+    if (text != null) el.textContent = text;
+    return el;
+  }
+  function kpis(target, items) {
+    var root = resolve(target);
+    root.innerHTML = "";
+    root.classList.add("shell-grid");
+    items.forEach(function (item) {
+      var card = node("div", "panel kpi");
+      card.appendChild(node("span", "kpi-label", item.label));
+      card.appendChild(node("span", "kpi-value", String(item.value)));
+      if (item.hint) card.appendChild(node("span", "kpi-label", item.hint));
+      root.appendChild(card);
+    });
+  }
+  function toast(message, opts) {
+    opts = opts || {};
+    var toaster = document.querySelector(".toaster") || document.body.appendChild(node("div", "toaster"));
+    var item = node("div", "toast");
+    item.setAttribute("role", opts.type === "error" ? "alert" : "status");
+    item.setAttribute("aria-hidden", "true");
+    if (opts.type) item.setAttribute("data-type", opts.type);
+    var content = node("div", "toast-content");
+    var section = node("section");
+    if (opts.title) section.appendChild(node("h2", "", opts.title));
+    section.appendChild(node("p", "", message));
+    content.appendChild(section);
+    item.appendChild(content);
+    toaster.appendChild(item);
+    requestAnimationFrame(function () { item.setAttribute("aria-hidden", "false"); });
+    setTimeout(function () {
+      item.setAttribute("aria-hidden", "true");
+      setTimeout(function () { item.remove(); }, 400);
+    }, opts.duration || 3500);
+  }
+  function store(key, fallback) {
+    var memory;
+    var unsaved = false;
+    var initial = function () { return fallback === undefined ? undefined : JSON.parse(JSON.stringify(fallback)); };
+    return {
+      get: function() {
+        if (!unsaved) {
+          try { var raw = localStorage.getItem(key); if (raw != null) return JSON.parse(raw); } catch (e) {}
+        }
+        return memory !== undefined ? memory : initial();
+      },
+      set: function(value) {
+        memory = value;
+        try { localStorage.setItem(key, JSON.stringify(value)); unsaved = false; } catch (e) { unsaved = true; }
+        return value;
       }
-    ],
-    faltas: {}
-  };
-}
-
-const store = window.skipStore(CHAVE_DADOS, estadoInicial());
-let estado = store.get() || estadoInicial();
-
-function salvar() {
-  store.set(estado);
-}
-
-let dataSelecionada = hojeISO();
-let mesCalendario = new Date();
-let chamadaAtual = {};
-
-function mostrarSecao(id) {
-  $$(".section").forEach((s) => s.classList.toggle("active", s.id === id));
-  $$(".nav-link").forEach((b) => b.classList.toggle("active", b.dataset.target === id));
-  if (id === "sec-consulta") { atualizarKpisConsulta(); buscarFaltosos(); }
-}
-
-$$(".nav-link").forEach((btn) => {
-  btn.addEventListener("click", () => mostrarSecao(btn.dataset.target));
-});
-
-function turmaAtual() {
-  return estado.turmas.find((t) => t.id === estado.turmaSelecionada) || estado.turmas[0] || null;
-}
-
-function renderTurmas() {
-  const lista = $("#listaTurmas");
-  lista.innerHTML = "";
-  if (!estado.turmaSelecionada && estado.turmas.length > 0) {
-    estado.turmaSelecionada = estado.turmas[0].id;
+    };
   }
-  if (estado.turmas.length === 0) {
-    lista.innerHTML = '<li class="empty-msg">Nenhuma turma cadastrada.</li>';
-  } else {
-    estado.turmas.forEach((t) => {
-      const li = document.createElement("li");
-      li.className = t.id === estado.turmaSelecionada ? "selected" : "";
-      li.innerHTML =
-        '<div class="list-main" data-id="' + t.id + '">' +
-        "<strong>" + escaparHTML(t.nome) + "</strong>" +
-        "<small>" + t.alunos.length + " aluno(s)</small></div>" +
-        '<div class="row-actions">' +
-        '<button class="btn" data-variant="destructive" data-size="sm" type="button" data-act="excluir-turma" data-id="' + t.id + '">Excluir</button>' +
-        "</div>";
-      lista.appendChild(li);
-    });
-  }
-  atualizarSelects();
-  renderAlunos();
-  atualizarKpisCadastro();
-  $("#navCountClasses").textContent = estado.turmas.length;
-}
-
-function renderAlunos() {
-  const lista = $("#listaAlunos");
-  const t = turmaAtual();
-  lista.innerHTML = "";
-  $("#btnAddAluno").disabled = !t;
-  if (!t) {
-    $("#tituloAlunos").textContent = "Alunos";
-    $("#subtituloAlunos").textContent = "Selecione uma turma para gerenciar alunos.";
-    return;
-  }
-  $("#tituloAlunos").textContent = "Alunos - " + t.nome;
-  $("#subtituloAlunos").textContent = t.alunos.length + " aluno(s) com ID único gerado.";
-  if (t.alunos.length === 0) {
-    lista.innerHTML = '<li class="empty-msg">Nenhum aluno cadastrado nesta turma.</li>';
-    return;
-  }
-  t.alunos.forEach((a) => {
-    const li = document.createElement("li");
-    li.innerHTML =
-      '<div class="list-main"><strong>' + escaparHTML(a.nome) + '</strong><small class="mono">ID: ' + a.id + '</small></div>' +
-      '<div class="row-actions">' +
-      '<button class="btn" data-variant="destructive" data-size="sm" type="button" data-act="excluir-aluno" data-id="' + a.id + '">Excluir</button>' +
-      "</div>";
-    lista.appendChild(li);
-  });
-}
-
-function atualizarSelects() {
-  const opcoes = estado.turmas.length
-    ? estado.turmas.map((t) => '<option value="' + t.id + '">' + escaparHTML(t.nome) + "</option>").join("")
-    : '<option value="">Cadastre uma turma</option>';
-  $("#selTurma").innerHTML = opcoes;
-  if (estado.turmaSelecionada) $("#selTurma").value = estado.turmaSelecionada;
-
-  $("#fTurma").innerHTML = '<option value="todas">Todas as turmas</option>' +
-    estado.turmas.map((t) => '<option value="' + t.id + '">' + escaparHTML(t.nome) + "</option>").join("");
-}
-
-function atualizarKpisCadastro() {
-  const totalAlunos = estado.turmas.reduce((s, t) => s + t.alunos.length, 0);
-  const hojeFaltas = Object.keys(estado.faltas[hojeISO()] || {}).reduce(
-    (s, tid) => s + (estado.faltas[hojeISO()][tid] || []).length, 0);
-  window.skipUI.kpis($("#kpisCadastro"), [
-    { label: "Turmas cadastradas", value: estado.turmas.length, hint: "Ativas" },
-    { label: "Alunos matriculados", value: totalAlunos, hint: "Com ID único" },
-    { label: "Faltas hoje", value: hojeFaltas, hint: formatarDataBR(hojeISO()) }
-  ]);
-}
-
-function sincronizarPlanilha(payload) {
-  if (!ENDPOINT_SHEETS || ENDPOINT_SHEETS.includes("SUA_URL_AQUI")) {
-    $("#endpointAlert").hidden = false;
-    $("#sheetStatus").textContent = "Planilha: aguardando endpoint";
-    return Promise.resolve({ enviado: false });
-  }
-  $("#endpointAlert").hidden = true;
-  $("#sheetStatus").textContent = "Planilha: envio ativo";
-  return fetch(ENDPOINT_SHEETS, {
-    method: "POST",
-    mode: "no-cors",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify(payload)
-  }).then(() => ({ enviado: true })).catch(() => ({ enviado: false }));
-}
-
-$("#formTurma").addEventListener("submit", (ev) => {
-  ev.preventDefault();
-  const nome = $("#turmaNome").value.trim();
-  if (!nome) return;
-  if (estado.turmas.some((t) => t.nome.toLowerCase() === nome.toLowerCase())) {
-    window.skipUI.toast("Já existe uma turma com este nome.", { type: "error" });
-    return;
-  }
-  const novaTurma = { id: gerarId("t"), nome, alunos: [] };
-  estado.turmas.push(novaTurma);
-  estado.turmaSelecionada = novaTurma.id;
-  salvar();
-  $("#turmaNome").value = "";
-  renderTurmas();
-  carregarChamada();
-
-  sincronizarPlanilha({ acao: "cadastrar_turma", turma: nome }).then(() => {
-    window.skipUI.toast("Turma \"" + nome + "\" cadastrada com sucesso!", { type: "success" });
-  });
-});
-
-$("#formAluno").addEventListener("submit", (ev) => {
-  ev.preventDefault();
-  const t = turmaAtual();
-  if (!t) return;
-  const nome = $("#alunoNome").value.trim();
-  if (!nome) return;
-  if (t.alunos.some((a) => a.nome.toLowerCase() === nome.toLowerCase())) {
-    window.skipUI.toast("Este aluno já está cadastrado nesta turma.", { type: "error" });
-    return;
-  }
-  const alunoId = gerarId("a");
-  t.alunos.push({ id: alunoId, nome });
-  salvar();
-  $("#alunoNome").value = "";
-  renderTurmas();
-  carregarChamada();
-
-  sincronizarPlanilha({ acao: "cadastrar_aluno", turma: t.nome, alunoId, aluno: nome }).then(() => {
-    window.skipUI.toast("Aluno " + nome + " cadastrado com ID único (" + alunoId + ").", { type: "success" });
-  });
-});
-
-$("#listaTurmas").addEventListener("click", (ev) => {
-  const btn = ev.target.closest("button[data-act='excluir-turma']");
-  if (btn) {
-    const id = btn.dataset.id;
-    estado.turmas = estado.turmas.filter((x) => x.id !== id);
-    if (estado.turmaSelecionada === id) estado.turmaSelecionada = estado.turmas[0] ? estado.turmas[0].id : null;
-    salvar();
-    renderTurmas();
-    carregarChamada();
-    window.skipUI.toast("Turma excluída com sucesso.");
-    return;
-  }
-  const main = ev.target.closest(".list-main");
-  if (main) {
-    estado.turmaSelecionada = main.dataset.id;
-    salvar();
-    renderTurmas();
-    carregarChamada();
-  }
-});
-
-$("#listaAlunos").addEventListener("click", (ev) => {
-  const btn = ev.target.closest("button[data-act='excluir-aluno']");
-  if (!btn) return;
-  const t = turmaAtual();
-  if (!t) return;
-  t.alunos = t.alunos.filter((x) => x.id !== btn.dataset.id);
-  salvar();
-  renderTurmas();
-  carregarChamada();
-  window.skipUI.toast("Aluno removido da turma.");
-});
-
-function renderCalendario() {
-  const ano = mesCalendario.getFullYear();
-  const mes = mesCalendario.getMonth();
-  $("#calTitle").textContent = MESES[mes] + " de " + ano;
-  const primeiro = new Date(ano, mes, 1).getDay();
-  const diasNoMes = new Date(ano, mes + 1, 0).getDate();
-  const diasMesAnt = new Date(ano, mes, 0).getDate();
-  const grid = $("#calGrid");
-  grid.innerHTML = "";
-  const hoje = hojeISO();
-
-  for (let i = 0; i < 42; i++) {
-    let dia, mesRef, anoRef, fora = false;
-    if (i < primeiro) {
-      dia = diasMesAnt - primeiro + i + 1; mesRef = mes - 1; anoRef = ano; fora = true;
-    } else if (i >= primeiro + diasNoMes) {
-      dia = i - (primeiro + diasNoMes) + 1; mesRef = mes + 1; anoRef = ano; fora = true;
-    } else {
-      dia = i - primeiro + 1; mesRef = mes; anoRef = ano;
-    }
-    const dt = new Date(anoRef, mesRef, dia);
-    const iso = dataISO(dt);
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "cal-day";
-    btn.textContent = dt.getDate();
-    if (fora) btn.classList.add("outside");
-    if (iso === hoje) btn.classList.add("today");
-    if (iso === dataSelecionada) btn.classList.add("selected");
-    if (estado.faltas[iso] && Object.values(estado.faltas[iso]).some((l) => l.length > 0)) btn.classList.add("has-faltas");
-    btn.addEventListener("click", () => {
-      dataSelecionada = iso;
-      if (fora) mesCalendario = new Date(anoRef, mesRef, 1);
-      renderCalendario();
-      carregarChamada();
-    });
-    grid.appendChild(btn);
-  }
-}
-
-$("#calPrev").addEventListener("click", () => {
-  mesCalendario = new Date(mesCalendario.getFullYear(), mesCalendario.getMonth() - 1, 1);
-  renderCalendario();
-});
-$("#calNext").addEventListener("click", () => {
-  mesCalendario = new Date(mesCalendario.getFullYear(), mesCalendario.getMonth() + 1, 1);
-  renderCalendario();
-});
-
-function carregarChamada() {
-  const t = turmaAtual();
-  chamadaAtual = {};
-  if (t) {
-    const registradas = (estado.faltas[dataSelecionada] || {})[t.id] || [];
-    t.alunos.forEach((a) => { chamadaAtual[a.id] = registradas.includes(a.id); });
-  }
-  $("#badgeData").textContent = formatarDataBR(dataSelecionada);
-  renderChamada();
-}
-
-function renderChamada() {
-  const lista = $("#listaChamada");
-  const t = turmaAtual();
-  lista.innerHTML = "";
-  if (!t) {
-    lista.innerHTML = '<li class="empty-msg">Nenhuma turma selecionada.</li>';
-    $("#badgeContagem").textContent = "0 alunos";
-    $("#resumoDia").textContent = "";
-    return;
-  }
-  t.alunos.forEach((a) => {
-    const faltou = !!chamadaAtual[a.id];
-    const li = document.createElement("li");
-    li.className = faltou ? "faltou" : "";
-    li.innerHTML =
-      '<span class="nome"><strong>' + escaparHTML(a.nome) + '</strong><br><small class="mono">ID: ' + a.id + '</small></span>' +
-      '<div class="toggle-wrap">' +
-      '<span class="toggle-label ' + (faltou ? "absent" : "present") + '">' + (faltou ? "FALTOU" : "PRESENTE") + "</span>" +
-      '<button type="button" class="toggle ' + (faltou ? "off" : "") + '" data-id="' + a.id + '"></button>' +
-      "</div>";
-    lista.appendChild(li);
-  });
-  $("#badgeContagem").textContent = t.alunos.length + " alunos";
-  atualizarResumoDia();
-}
-
-function atualizarResumoDia() {
-  const t = turmaAtual();
-  if (!t) return;
-  const faltosos = t.alunos.filter((a) => chamadaAtual[a.id]);
-  $("#resumoDia").textContent = faltosos.length === 0
-    ? "Todos os alunos presentes na data."
-    : faltosos.length + " aluno(s) com falta marcada para esta data.";
-}
-
-$("#listaChamada").addEventListener("click", (ev) => {
-  const btn = ev.target.closest("button.toggle");
-  if (!btn) return;
-  const id = btn.dataset.id;
-  const t = turmaAtual();
-  
-  const jaRegistrada = (estado.faltas[dataSelecionada] || {})[t.id] || [];
-  const tentandoMarcarFalta = !chamadaAtual[id];
-
-  if (tentandoMarcarFalta && jaRegistrada.includes(id)) {
-    window.skipUI.toast("Atenção: Este aluno já está com falta registrada neste dia!", { type: "error" });
-    return;
-  }
-
-  chamadaAtual[id] = tentandoMarcarFalta;
-  renderChamada();
-});
-
-$("#selTurma").addEventListener("change", (ev) => {
-  estado.turmaSelecionada = ev.target.value;
-  salvar();
-  renderTurmas();
-  carregarChamada();
-});
-
-$("#btnTodosPresentes").addEventListener("click", () => {
-  Object.keys(chamadaAtual).forEach((k) => { chamadaAtual[k] = false; });
-  renderChamada();
-  window.skipUI.toast("Todos marcados como presentes.");
-});
-
-$("#btnCopiarResumo").addEventListener("click", () => {
-  const t = turmaAtual();
-  if (!t) return;
-  const faltosos = t.alunos.filter((a) => chamadaAtual[a.id]).map((a) => a.nome);
-  const texto = "Frequência " + t.nome + " - " + formatarDataBR(dataSelecionada) + "\n" +
-    (faltosos.length ? "Faltas: " + faltosos.join(", ") : "Sem faltas.");
-  navigator.clipboard.writeText(texto).then(() => window.skipUI.toast("Resumo copiado!", { type: "success" }));
-});
-
-$("#btnConfirmarFaltas").addEventListener("click", () => {
-  const t = turmaAtual();
-  if (!t) return;
-
-  const faltososIds = t.alunos.filter((a) => chamadaAtual[a.id]).map((a) => a.id);
-  
-  if (!estado.faltas[dataSelecionada]) estado.faltas[dataSelecionada] = {};
-  estado.faltas[dataSelecionada][t.id] = faltososIds;
-  salvar();
-
-  const registros = t.alunos.map((a) => ({
-    data: formatarDataBR(dataSelecionada),
-    turma: t.nome,
-    alunoId: a.id,
-    aluno: a.nome,
-    status: chamadaAtual[a.id] ? "FALTOU" : "PRESENTE"
-  }));
-
-  sincronizarPlanilha({ acao: "registrar_faltas", registros }).then(() => {
-    renderCalendario();
-    atualizarKpisCadastro();
-    window.skipUI.toast("Faltas do dia " + formatarDataBR(dataSelecionada) + " confirmadas e salvas com sucesso!", { type: "success" });
-  });
-});
-
-function atualizarKpisConsulta() {
-  const linhas = coletarFaltosos(obterFiltros());
-  const total = linhas.reduce((s, l) => s + l.total, 0);
-  window.skipUI.kpis($("#kpisConsulta"), [
-    { label: "Ocorrências de Faltas", value: total, hint: "No período selecionado" }
-  ]);
-}
-
-function obterFiltros() {
-  const tipo = $("#fTipo").value;
-  const f = { turma: $("#fTurma").value, tipo };
-  if (tipo === "dia") {
-    f.inicio = f.fim = $("#fDia").value;
-  } else if (tipo === "mes") {
-    const m = $("#fMes").value;
-    if (m) {
-      const [a, mo] = m.split("-").map(Number);
-      f.inicio = dataISO(new Date(a, mo - 1, 1));
-      f.fim = dataISO(new Date(a, mo, 0));
-    }
-  } else {
-    f.inicio = $("#fIni").value;
-    f.fim = $("#fFim").value;
-  }
-  return f;
-}
-
-function coletarFaltosos(f) {
-  const lista = [];
-  Object.keys(estado.faltas).forEach((data) => {
-    if (f.inicio && data < f.inicio) return;
-    if (f.fim && data > f.fim) return;
-    Object.keys(estado.faltas[data]).forEach((tid) => {
-      if (f.turma !== "todas" && f.turma !== tid) return;
-      const turma = estado.turmas.find((t) => t.id === tid);
-      if (!turma) return;
-      (estado.faltas[data][tid] || []).forEach((aid) => {
-        const aluno = turma.alunos.find((a) => a.id === aid);
-        if (!aluno) return;
-        lista.push({ data, turmaId: tid, turma: turma.nome, alunoId: aid, aluno: aluno.nome, total: 1 });
-      });
-    });
-  });
-  return lista.sort((a, b) => b.data.localeCompare(a.data) || a.aluno.localeCompare(b.aluno));
-}
-
-function buscarFaltosos() {
-  const f = obterFiltros();
-  const linhas = coletarFaltosos(f);
-  const corpo = $("#tbodyFaltosos");
-  corpo.innerHTML = "";
-  linhas.forEach((l) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML =
-      "<td>" + formatarDataBR(l.data) + "</td>" +
-      "<td>" + escaparHTML(l.turma) + "</td>" +
-      "<td>" + escaparHTML(l.aluno) + ' <small class="mono">(' + l.alunoId + ')</small></td>' +
-      '<td class="num"><button class="btn" data-variant="destructive" data-size="sm" data-data="' + l.data + '" data-turma="' + l.turmaId + '" data-aluno="' + l.alunoId + '">Remover Falta</button></td>';
-    corpo.appendChild(tr);
-  });
-  $("#tabelaVazia").hidden = linhas.length > 0;
-  const periodo = f.tipo === "dia" ? formatarDataBR(f.inicio) : "Período filtrado";
-  $("#resultadoResumo").textContent = linhas.length + " registro(s) encontrado(s).";
-  $("#printResumo").textContent = periodo;
-  atualizarKpisConsulta();
-}
-
-$("#tbodyFaltosos").addEventListener("click", (ev) => {
-  const btn = ev.target.closest("button[data-data]");
-  if (!btn) return;
-  const { data, turma, aluno } = btn.dataset;
-  if (estado.faltas[data] && estado.faltas[data][turma]) {
-    estado.faltas[data][turma] = estado.faltas[data][turma].filter(id => id !== aluno);
-    salvar();
-    buscarFaltosos();
-    renderCalendario();
-    atualizarKpisCadastro();
-    window.skipUI.toast("Falta removida com sucesso do registro.", { type: "success" });
-  }
-});
-
-$("#fTipo").addEventListener("change", () => {
-  const t = $("#fTipo").value;
-  $("#wrapDia").hidden = t !== "dia";
-  $("#wrapMes").hidden = t !== "mes";
-  $("#wrapIni").hidden = t !== "intervalo";
-  $("#wrapFim").hidden = t !== "intervalo";
-});
-
-$("#btnBuscar").addEventListener("click", buscarFaltosos);
-$("#btnImprimir").addEventListener("click", () => { buscarFaltosos(); window.print(); });
-
-$("#btnBackup").addEventListener("click", () => {
-  const blob = new Blob([JSON.stringify(estado, null, 2)], { type: "application/json" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "backup_cemjos.json";
-  a.click();
-  window.skipUI.toast("Backup exportado!", { type: "success" });
-});
-
-$("#btnReset").addEventListener("click", () => {
-  if (confirm("Deseja restaurar o estado inicial?")) {
-    estado = estadoInicial();
-    salvar();
-    renderTurmas();
-    renderCalendario();
-    carregarChamada();
-    window.skipUI.toast("Restaurado com sucesso.");
-  }
-});
-
-document.addEventListener("DOMContentLoaded", () => {
-  const hojeInput = hojeISO();
-  $("#fDia").value = hojeInput;
-  $("#fMes").value = hojeInput.slice(0, 7);
-  $("#fIni").value = hojeInput.slice(0, 7) + "-01";
-  $("#fFim").value = hojeInput;
-  
-  if (ENDPOINT_SHEETS && !ENDPOINT_SHEETS.includes("SUA_URL_AQUI")) {
-    $("#endpointAlert").hidden = true;
-    $("#sheetStatus").textContent = "Planilha: envio ativo";
-  } else {
-    $("#endpointAlert").hidden = false;
-    $("#sheetStatus").textContent = "Planilha: aguardando endpoint";
-  }
-
-  renderTurmas();
-  renderCalendario();
-  carregarChamada();
-  atualizarKpisConsulta();
-});
+  window.skipUI = { kpis: kpis, toast: toast };
+  window.skipStore = store;
+})();
 </script>
-  /* ============================================================
-   COLE ABAIXO A SUA URL DO GOOGLE APPS SCRIPT TERMINADA EM /exec
+</head>
+<body>
+<div class="app">
+<aside class="sidebar" aria-label="Menu principal">
+<div class="brand">
+<div class="brand-mark" aria-hidden="true">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+</div>
+<div>
+<div class="brand-name">CEMJOS</div>
+<div class="brand-sub">Controle de Faltas</div>
+</div>
+</div>
+<nav class="nav" role="navigation">
+<button class="nav-link active" data-target="sec-cadastro" type="button">
+<span>Turmas e Alunos</span>
+<span class="badge nav-count" id="navCountClasses" data-variant="secondary">0</span>
+</button>
+<button class="nav-link" data-target="sec-registro" type="button">
+<span>Registrar Faltas</span>
+</button>
+<button class="nav-link" data-target="sec-consulta" type="button">
+<span>Consultar Faltosos</span>
+</button>
+</nav>
+<div class="sidebar-foot">
+<span id="sheetStatus">Planilha: envio ativo</span>
+</div>
+</aside>
+
+<div class="main">
+<header class="topbar">
+<div>
+<span class="badge" data-variant="outline">Frequência escolar 2026</span>
+<h1 class="page-title">Sistema de Controle de Faltas de Alunos</h1>
+<p class="muted text-sm">Gerencie turmas, alunos com ID único, chamadas e sincronize com o Google Sheets.</p>
+</div>
+<div class="row gap-2">
+<button class="btn" data-variant="outline" type="button" id="btnBackup">Exportar JSON</button>
+<button class="btn" data-variant="ghost" type="button" id="btnReset">Restaurar exemplo</button>
+</div>
+</header>
+
+<div class="alert" id="endpointAlert" data-variant="destructive" hidden>
+<div>
+<strong>Endpoint do Google Sheets não configurado.</strong>
+<span>Insira a URL do Apps Script na constante ENDPOINT_SHEETS para habilitar a sincronização na nuvem.</span>
+</div>
+</div>
+
+<!-- SEÇÃO 1: TURMAS E ALUNOS -->
+<section id="sec-cadastro" class="section active">
+<div class="kpi-row" id="kpisCadastro"></div>
+
+<div class="grid-2">
+<div class="card">
+<header>
+<h2>Turmas</h2>
+<p>Cadastre turmas e sincronize automaticamente com a planilha.</p>
+</header>
+<section class="stack gap-3">
+<form id="formTurma" class="inline-form" autocomplete="off">
+<div class="field grow">
+<label for="turmaNome">Nome da turma</label>
+<input class="input" id="turmaNome" type="text" maxlength="60" placeholder="Ex.: 3º A - Matutino" required>
+</div>
+<button class="btn" type="submit">Adicionar turma</button>
+</form>
+<ul class="list" id="listaTurmas"></ul>
+</section>
+</div>
+
+<div class="card">
+<header>
+<h2 id="tituloAlunos">Alunos</h2>
+<p id="subtituloAlunos">Selecione uma turma para gerenciar alunos (gera ID único).</p>
+</header>
+<section class="stack gap-3">
+<form id="formAluno" class="inline-form" autocomplete="off">
+<div class="field grow">
+<label for="alunoNome">Nome do aluno</label>
+<input class="input" id="alunoNome" type="text" maxlength="80" placeholder="Ex.: Ana Beatriz Souza" required>
+</div>
+<button class="btn" type="submit" id="btnAddAluno">Adicionar aluno</button>
+</form>
+<ul class="list" id="listaAlunos"></ul>
+</section>
+</div>
+</div>
+</section>
+
+<!-- SEÇÃO 2: REGISTRO DE FALTAS -->
+<section id="sec-registro" class="section">
+<div class="grid-reg">
+<div class="card">
+<header>
+<h2>Calendário</h2>
+<p>Selecione o dia desejado para a chamada.</p>
+</header>
+<section>
+<div class="cal-head">
+<button class="btn" data-variant="outline" data-size="icon" type="button" id="calPrev">‹</button>
+<strong id="calTitle"></strong>
+<button class="btn" data-variant="outline" data-size="icon" type="button" id="calNext">›</button>
+</div>
+<div class="cal-week mt-2">
+<span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
+</div>
+<div class="cal-grid mt-2" id="calGrid" role="grid"></div>
+</section>
+</div>
+
+<div class="card">
+<header>
+<h2>Chamada do dia</h2>
+<p>Alterne o interruptor para marcar a falta. Duplicidades no mesmo dia são bloqueadas.</p>
+</header>
+<section class="stack gap-3">
+<div class="field">
+<label for="selTurma">Turma</label>
+<select class="input" id="selTurma"></select>
+</div>
+<div class="row between">
+<div class="row gap-2">
+<span class="badge" data-variant="secondary" id="badgeData">--</span>
+<span class="badge" data-variant="outline" id="badgeContagem">0 alunos</span>
+</div>
+<button class="btn" data-variant="ghost" data-size="sm" type="button" id="btnTodosPresentes">Marcar todos presentes</button>
+</div>
+<ul class="chamada" id="listaChamada"></ul>
+<div class="resumo-dia" id="resumoDia"></div>
+<div class="row gap-2">
+<button class="btn grow" type="button" id="btnConfirmarFaltas">Confirmar faltas do dia</button>
+<button class="btn" data-variant="outline" type="button" id="btnCopiarResumo">Copiar resumo</button>
+</div>
+</section>
+</div>
+</div>
+</section>
+
+<!-- SEÇÃO 3: CONSULTA E IMPRESSÃO -->
+<section id="sec-consulta" class="section">
+<div class="kpi-row" id="kpisConsulta"></div>
+
+<div class="card no-print">
+<header>
+<h2>Filtros da consulta</h2>
+<p>Consulte faltas por período e remova faltas lançadas por engano.</p>
+</header>
+<section class="stack gap-3">
+<div class="cols-4 gap-3">
+<div class="field">
+<label for="fTurma">Turma</label>
+<select class="input" id="fTurma"></select>
+</div>
+<div class="field">
+<label for="fTipo">Tipo de período</label>
+<select class="input" id="fTipo">
+<option value="dia">Dia específico</option>
+<option value="mes">Mês</option>
+<option value="intervalo">Intervalo de datas</option>
+</select>
+</div>
+<div class="field" id="wrapDia">
+<label for="fDia">Dia</label>
+<input class="input" type="date" id="fDia">
+</div>
+<div class="field" id="wrapMes" hidden>
+<label for="fMes">Mês</label>
+<input class="input" type="month" id="fMes">
+</div>
+<div class="field" id="wrapIni" hidden>
+<label for="fIni">Data inicial</label>
+<input class="input" type="date" id="fIni">
+</div>
+<div class="field" id="wrapFim" hidden>
+<label for="fFim">Data final</label>
+<input class="input" type="date" id="fFim">
+</div>
+</div>
+<div class="row gap-2">
+<button class="btn" type="button" id="btnBuscar">Buscar faltosos</button>
+<button class="btn" data-variant="outline" type="button" id="btnImprimir">Imprimir em PDF</button>
+</div>
+</section>
+</div>
+
+<div class="card" id="areaImpressao">
+<div class="print-only print-head">
+<h2>Relatório de Faltosos - CEMJOS</h2>
+<p id="printResumo"></p>
+</div>
+<header class="no-print">
+<h2>Alunos faltosos e Remoção de Faltas Equivocadas</h2>
+<p id="resultadoResumo">Preencha os filtros e clique em buscar.</p>
+</header>
+<section>
+<div class="table-wrap">
+<table class="shell-table">
+<thead>
+<tr>
+<th>Data</th>
+<th>Turma</th>
+<th>Aluno</th>
+<th class="num">Ação</th>
+</tr>
+</thead>
+<tbody id="tbodyFaltosos"></tbody>
+</table>
+</div>
+<p class="muted text-xs mt-2" id="tabelaVazia" hidden>Nenhuma falta encontrada para o período.</p>
+</section>
+</div>
+</section>
+
+<footer class="shell-footer no-print">
+<span>Dados sincronizados com a planilha Frequencia_CEMJOS_2026.</span>
+</footer>
+</div>
+</div>
+
+<script>
+/* ============================================================
+   URL DO GOOGLE APPS SCRIPT CONFIGURADA
 ============================================================ */
 const ENDPOINT_SHEETS = "https://script.google.com/macros/s/AKfycbwryCS0yiV50ySo6D-ZJbTJzDqU88rB7hhQYITrgfPVq3tCMvKxuoii8CQY1Wo4yyZx/exec";
 
@@ -721,6 +480,24 @@ const MESES = ["janeiro","fevereiro","março","abril","maio","junho","julho","ag
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+function endpointConfigurado() {
+  return (
+    typeof ENDPOINT_SHEETS === "string" &&
+    ENDPOINT_SHEETS.trim().startsWith("https://script.google.com/macros/s/") &&
+    !ENDPOINT_SHEETS.includes("SUA_URL_AQUI")
+  );
+}
+
+function atualizarStatusEndpoint() {
+  if (endpointConfigurado()) {
+    $("#endpointAlert").hidden = true;
+    $("#sheetStatus").textContent = "Planilha: envio ativo";
+  } else {
+    $("#endpointAlert").hidden = false;
+    $("#sheetStatus").textContent = "Planilha: aguardando endpoint";
+  }
+}
 
 function gerarId(prefixo) {
   return prefixo + "_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -866,13 +643,10 @@ function atualizarKpisCadastro() {
 }
 
 function sincronizarPlanilha(payload) {
-  if (!ENDPOINT_SHEETS || ENDPOINT_SHEETS.includes("https://script.google.com/macros/s/AKfycbwryCS0yiV50ySo6D-ZJbTJzDqU88rB7hhQYITrgfPVq3tCMvKxuoii8CQY1Wo4yyZx/exec")) {
-    $("#endpointAlert").hidden = false;
-    $("#sheetStatus").textContent = "Planilha: aguardando endpoint";
+  atualizarStatusEndpoint();
+  if (!endpointConfigurado()) {
     return Promise.resolve({ enviado: false });
   }
-  $("#endpointAlert").hidden = true;
-  $("#sheetStatus").textContent = "Planilha: envio ativo";
   return fetch(ENDPOINT_SHEETS, {
     method: "POST",
     mode: "no-cors",
@@ -898,7 +672,7 @@ $("#formTurma").addEventListener("submit", (ev) => {
   carregarChamada();
 
   sincronizarPlanilha({ acao: "cadastrar_turma", turma: nome }).then(() => {
-    window.skipUI.toast("Turma \"" + nome + "\" cadastrada com sucesso!", { type: "success" });
+    window.skipUI.toast("Turma \"" + nome + "\" cadastrada e enviada para a planilha!", { type: "success" });
   });
 });
 
@@ -1113,7 +887,7 @@ $("#btnConfirmarFaltas").addEventListener("click", () => {
   sincronizarPlanilha({ acao: "registrar_faltas", registros }).then(() => {
     renderCalendario();
     atualizarKpisCadastro();
-    window.skipUI.toast("Faltas do dia " + formatarDataBR(dataSelecionada) + " confirmadas e salvas com sucesso!", { type: "success" });
+    window.skipUI.toast("Faltas do dia " + formatarDataBR(dataSelecionada) + " confirmadas e salvas na planilha!", { type: "success" });
   });
 });
 
@@ -1236,13 +1010,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#fIni").value = hojeInput.slice(0, 7) + "-01";
   $("#fFim").value = hojeInput;
   
-  if (ENDPOINT_SHEETS && !ENDPOINT_SHEETS.includes("https://script.google.com/macros/s/AKfycbwryCS0yiV50ySo6D-ZJbTJzDqU88rB7hhQYITrgfPVq3tCMvKxuoii8CQY1Wo4yyZx/exec")) {
-    $("#endpointAlert").hidden = true;
-    $("#sheetStatus").textContent = "Planilha: envio ativo";
-  } else {
-    $("#endpointAlert").hidden = false;
-    $("#sheetStatus").textContent = "Planilha: aguardando endpoint";
-  }
+  atualizarStatusEndpoint();
 
   renderTurmas();
   renderCalendario();
