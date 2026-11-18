@@ -472,7 +472,7 @@ table.shell-table td.num, table.shell-table th.num { text-align: right; }
 /* ============================================================
    URL DO GOOGLE APPS SCRIPT CONFIGURADA
 ============================================================ */
-const ENDPOINT_SHEETS = "https://script.google.com/macros/s/AKfycbwryCS0yiV50ySo6D-ZJbTJzDqU88rB7hhQYITrgfPVq3tCMvKxuoii8CQY1Wo4yyZx/exec";
+const ENDPOINT_SHEETS = "https://script.google.com/macros/s/AKfycbz0zQIDTwShDOGl0XQXUlIF1LEMzJnVBdgGSRIHgBu85DB3xifvay2Swwc03OOboNMn/exec";
 
 const PLANILHA_ID = "17tTh9a1Ql1qehN8Ydafdym4UN_XwinukLKh07TBqhag";
 const CHAVE_DADOS = "cemjos_faltas_v2";
@@ -702,12 +702,18 @@ $("#listaTurmas").addEventListener("click", (ev) => {
   const btn = ev.target.closest("button[data-act='excluir-turma']");
   if (btn) {
     const id = btn.dataset.id;
+    const turmaExcluida = estado.turmas.find(x => x.id === id);
+    const nomeTurma = turmaExcluida ? turmaExcluida.nome : "";
+
     estado.turmas = estado.turmas.filter((x) => x.id !== id);
     if (estado.turmaSelecionada === id) estado.turmaSelecionada = estado.turmas[0] ? estado.turmas[0].id : null;
     salvar();
     renderTurmas();
     carregarChamada();
-    window.skipUI.toast("Turma excluída com sucesso.");
+
+    sincronizarPlanilha({ acao: "excluir_turma", turma: nomeTurma }).then(() => {
+      window.skipUI.toast("Turma excluída do sistema e da planilha.");
+    });
     return;
   }
   const main = ev.target.closest(".list-main");
@@ -724,11 +730,16 @@ $("#listaAlunos").addEventListener("click", (ev) => {
   if (!btn) return;
   const t = turmaAtual();
   if (!t) return;
-  t.alunos = t.alunos.filter((x) => x.id !== btn.dataset.id);
+  const alunoId = btn.dataset.id;
+
+  t.alunos = t.alunos.filter((x) => x.id !== alunoId);
   salvar();
   renderTurmas();
   carregarChamada();
-  window.skipUI.toast("Aluno removido da turma.");
+
+  sincronizarPlanilha({ acao: "excluir_aluno", alunoId }).then(() => {
+    window.skipUI.toast("Aluno removido da turma e da planilha.");
+  });
 });
 
 function renderCalendario() {
@@ -876,15 +887,16 @@ $("#btnConfirmarFaltas").addEventListener("click", () => {
   estado.faltas[dataSelecionada][t.id] = faltososIds;
   salvar();
 
-  const registros = t.alunos.map((a) => ({
-    data: formatarDataBR(dataSelecionada),
-    turma: t.nome,
-    alunoId: a.id,
-    aluno: a.nome,
-    status: chamadaAtual[a.id] ? "FALTOU" : "PRESENTE"
-  }));
+  const registros = t.alunos
+    .filter((a) => chamadaAtual[a.id])
+    .map((a) => ({
+      data: formatarDataBR(dataSelecionada),
+      turma: t.nome,
+      alunoId: a.id,
+      aluno: a.nome
+    }));
 
-  sincronizarPlanilha({ acao: "registrar_faltas", registros }).then(() => {
+  sincronizarPlanilha({ acao: "registrar_faltas", data: formatarDataBR(dataSelecionada), turma: t.nome, registros }).then(() => {
     renderCalendario();
     atualizarKpisCadastro();
     window.skipUI.toast("Faltas do dia " + formatarDataBR(dataSelecionada) + " confirmadas e salvas na planilha!", { type: "success" });
@@ -968,7 +980,13 @@ $("#tbodyFaltosos").addEventListener("click", (ev) => {
     buscarFaltosos();
     renderCalendario();
     atualizarKpisCadastro();
-    window.skipUI.toast("Falta removida com sucesso do registro.", { type: "success" });
+
+    const tObj = estado.turmas.find(t => t.id === turma);
+    const nomeTurma = tObj ? tObj.nome : "";
+
+    sincronizarPlanilha({ acao: "remover_falta", data: formatarDataBR(data), turma: nomeTurma, alunoId: aluno }).then(() => {
+      window.skipUI.toast("Falta removida da planilha e do sistema.", { type: "success" });
+    });
   }
 });
 
@@ -1012,15 +1030,19 @@ document.addEventListener("DOMContentLoaded", () => {
   
   atualizarStatusEndpoint();
 
-  // Busca turmas e alunos direto da planilha se o endpoint estiver ativo
-  if (endpointConfigurado()) {
+  if (ENDPOINT_SHEETS && !ENDPOINT_SHEETS.includes("SUA_URL_AQUI")) {
     fetch(ENDPOINT_SHEETS)
       .then(res => res.json())
       .then(data => {
-        if (data && data.ok && data.turmas && data.turmas.length > 0) {
-          estado.turmas = data.turmas;
-          if (!estado.turmaSelecionada && estado.turmas.length > 0) {
-            estado.turmaSelecionada = estado.turmas[0].id;
+        if (data && data.ok) {
+          if (data.turmas && data.turmas.length > 0) {
+            estado.turmas = data.turmas;
+            if (!estado.turmaSelecionada && estado.turmas.length > 0) {
+              estado.turmaSelecionada = estado.turmas[0].id;
+            }
+          }
+          if (data.faltas) {
+            estado.faltas = data.faltas;
           }
           salvar();
         }
@@ -1030,7 +1052,6 @@ document.addEventListener("DOMContentLoaded", () => {
         atualizarKpisConsulta();
       })
       .catch(() => {
-        // Fallback caso ocorra erro de rede, carrega do localStorage
         renderTurmas();
         renderCalendario();
         carregarChamada();
