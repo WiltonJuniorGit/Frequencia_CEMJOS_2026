@@ -642,17 +642,128 @@ function atualizarKpisCadastro() {
   ]);
 }
 
+function carregarDadosNuvem(opcoes = {}) {
+  if (!endpointConfigurado()) return Promise.resolve(false);
+
+  return new Promise((resolve) => {
+    const callback = "cemjosCallback_" + Date.now() + "_" + Math.random().toString(36).slice(2);
+    const script = document.createElement("script");
+    let finalizado = false;
+
+    const concluir = (sucesso) => {
+      if (finalizado) return;
+      finalizado = true;
+      clearTimeout(timeout);
+      script.remove();
+      try { delete window[callback]; } catch (e) { window[callback] = undefined; }
+      resolve(sucesso);
+    };
+
+    window[callback] = (data) => {
+      if (!data || !data.ok || !Array.isArray(data.turmas)) {
+        concluir(false);
+        return;
+      }
+
+      const turmaAnterior = turmaAtual();
+      const nomeTurmaAnterior = turmaAnterior ? turmaAnterior.nome : null;
+
+      estado.turmas = data.turmas.map(t => ({
+        id: String(t.id),
+        nome: String(t.nome),
+        alunos: Array.isArray(t.alunos) ? t.alunos.map(a => ({
+          id: String(a.id), nome: String(a.nome)
+        })) : []
+      }));
+      estado.faltas = data.faltas || {};
+
+      const turmaCorrespondente = estado.turmas.find(t => t.nome === nomeTurmaAnterior);
+      estado.turmaSelecionada = turmaCorrespondente
+        ? turmaCorrespondente.id
+        : (estado.turmas[0] ? estado.turmas[0].id : null);
+
+      salvar();
+      renderTurmas();
+      renderCalendario();
+      carregarChamada();
+      atualizarKpisConsulta();
+      if ($("#sec-consulta").classList.contains("active")) buscarFaltosos();
+
+      $("#sheetStatus").textContent = "Planilha: sincronizada";
+      concluir(true);
+    };
+
+    script.onerror = () => {
+      $("#sheetStatus").textContent = "Planilha: falha na conexão";
+      concluir(false);
+    };
+
+    const timeout = setTimeout(() => {
+      $("#sheetStatus").textContent = "Planilha: tempo esgotado";
+      concluir(false);
+    }, 15000);
+
+    script.src = ENDPOINT_SHEETS +
+      (ENDPOINT_SHEETS.includes("?") ? "&" : "?") +
+      "callback=" + encodeURIComponent(callback) + "&_ts=" + Date.now();
+    document.head.appendChild(script);
+  });
+}
+
+function confirmarPayloadNoServidor(payload) {
+  const turma = estado.turmas.find(t => t.nome === String(payload.turma || "").trim());
+
+  if (payload.acao === "cadastrar_turma") {
+    return !!turma;
+  }
+  if (payload.acao === "cadastrar_aluno") {
+    return !!turma && turma.alunos.some(a => a.id === String(payload.alunoId));
+  }
+  if (payload.acao === "excluir_aluno") {
+    return !estado.turmas.some(t => t.alunos.some(a => a.id === String(payload.alunoId)));
+  }
+  if (payload.acao === "excluir_turma") {
+    return !turma;
+  }
+  if (payload.acao === "remover_falta") {
+    const iso = String(payload.data || "").split("/").reverse().join("-");
+    return !turma || !((estado.faltas[iso] || {})[turma.id] || []).includes(String(payload.alunoId));
+  }
+  if (payload.acao === "registrar_faltas") {
+    const iso = String(payload.data || "").split("/").reverse().join("-");
+    if (!turma) return false;
+    const recebidos = ((estado.faltas[iso] || {})[turma.id] || []).slice().sort();
+    const enviados = (payload.registros || []).map(r => String(r.alunoId)).sort();
+    return recebidos.length === enviados.length &&
+      recebidos.every((id, i) => id === enviados[i]);
+  }
+  return false;
+}
+
 function sincronizarPlanilha(payload) {
   atualizarStatusEndpoint();
   if (!endpointConfigurado()) {
+    window.skipUI.toast("URL do Google Sheets não configurada.", { type: "error" });
     return Promise.resolve({ enviado: false });
   }
+
+  $("#sheetStatus").textContent = "Planilha: enviando...";
   return fetch(ENDPOINT_SHEETS, {
     method: "POST",
     mode: "no-cors",
     headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: JSON.stringify(payload)
-  }).then(() => ({ enviado: true })).catch(() => ({ enviado: false }));
+  }).then(() => carregarDadosNuvem()).then((sincronizado) => {
+    if (!sincronizado || !confirmarPayloadNoServidor(payload)) {
+      window.skipUI.toast("Não foi possível confirmar a gravação na planilha. Verifique a conexão e tente novamente.", { type: "error" });
+      return { enviado: false };
+    }
+    return { enviado: true };
+  }).catch(() => {
+    $("#sheetStatus").textContent = "Planilha: erro no envio";
+    window.skipUI.toast("Não foi possível enviar os dados ao Google Sheets.", { type: "error" });
+    return { enviado: false };
+  });
 }
 
 $("#formTurma").addEventListener("submit", (ev) => {
@@ -1021,49 +1132,36 @@ $("#btnReset").addEventListener("click", () => {
   }
 });
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   const hojeInput = hojeISO();
   $("#fDia").value = hojeInput;
   $("#fMes").value = hojeInput.slice(0, 7);
   $("#fIni").value = hojeInput.slice(0, 7) + "-01";
   $("#fFim").value = hojeInput;
-  
+
   atualizarStatusEndpoint();
 
-  if (ENDPOINT_SHEETS && !ENDPOINT_SHEETS.includes("https://script.google.com/macros/s/AKfycbz0zQIDTwShDOGl0XQXUlIF1LEMzJnVBdgGSRIHgBu85DB3xifvay2Swwc03OOboNMn/exec")) {
-    fetch(ENDPOINT_SHEETS)
-      .then(res => res.json())
-      .then(data => {
-        if (data && data.ok) {
-          if (data.turmas && data.turmas.length > 0) {
-            estado.turmas = data.turmas;
-            if (!estado.turmaSelecionada && estado.turmas.length > 0) {
-              estado.turmaSelecionada = estado.turmas[0].id;
-            }
-          }
-          if (data.faltas) {
-            estado.faltas = data.faltas;
-          }
-          salvar();
-        }
-        renderTurmas();
-        renderCalendario();
-        carregarChamada();
-        atualizarKpisConsulta();
-      })
-      .catch(() => {
-        renderTurmas();
-        renderCalendario();
-        carregarChamada();
-        atualizarKpisConsulta();
-      });
-  } else {
+  // A planilha é a fonte principal. O localStorage fica apenas como cópia de apoio.
+  const carregou = await carregarDadosNuvem();
+  if (!carregou) {
     renderTurmas();
     renderCalendario();
     carregarChamada();
     atualizarKpisConsulta();
+    $("#sheetStatus").textContent = "Planilha: sem sincronização";
   }
 });
+
+// Atualiza automaticamente os demais dispositivos enquanto a página estiver aberta.
+// A atualização também ocorre quando o usuário retorna à aba.
+setInterval(() => {
+  if (document.visibilityState === "visible") carregarDadosNuvem();
+}, 15000);
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") carregarDadosNuvem();
+});
+window.addEventListener("focus", () => carregarDadosNuvem());
 </script>
 </body>
 </html>
