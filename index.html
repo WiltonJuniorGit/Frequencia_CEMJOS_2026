@@ -458,7 +458,7 @@ table.shell-table td.num, table.shell-table th.num { text-align: right; }
 /* ============================================================
    COLE ABAIXO A SUA URL DO GOOGLE APPS SCRIPT TERMINADA EM /exec
 ============================================================ */
-const ENDPOINT_SHEETS = "https://script.google.com/macros/s/AKfycbxev_2iLpTUx8icghnl78ifa7T1Ks0NqljPGABT9zc/dev";
+const ENDPOINT_SHEETS = "https://script.google.com/macros/s/AKfycbwryCS0yiV50ySo6D-ZJbTJzDqU88rB7hhQYITrgfPVq3tCMvKxuoii8CQY1Wo4yyZx/exec";
 
 const PLANILHA_ID = "17tTh9a1Ql1qehN8Ydafdym4UN_XwinukLKh07TBqhag";
 const CHAVE_DADOS = "cemjos_faltas_v2";
@@ -611,7 +611,7 @@ function atualizarKpisCadastro() {
 }
 
 function sincronizarPlanilha(payload) {
-  if (!ENDPOINT_SHEETS || ENDPOINT_SHEETS.includes("https://script.google.com/macros/s/AKfycbxev_2iLpTUx8icghnl78ifa7T1Ks0NqljPGABT9zc/dev")) {
+  if (!ENDPOINT_SHEETS || ENDPOINT_SHEETS.includes("https://script.google.com/macros/s/AKfycbwryCS0yiV50ySo6D-ZJbTJzDqU88rB7hhQYITrgfPVq3tCMvKxuoii8CQY1Wo4yyZx/exec")) {
     $("#endpointAlert").hidden = false;
     $("#sheetStatus").textContent = "Planilha: aguardando endpoint";
     return Promise.resolve({ enviado: false });
@@ -981,7 +981,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#fIni").value = hojeInput.slice(0, 7) + "-01";
   $("#fFim").value = hojeInput;
   
-  if (ENDPOINT_SHEETS && !ENDPOINT_SHEETS.includes("https://script.google.com/macros/s/AKfycbxev_2iLpTUx8icghnl78ifa7T1Ks0NqljPGABT9zc/dev")) {
+  if (ENDPOINT_SHEETS && !ENDPOINT_SHEETS.includes("https://script.google.com/macros/s/AKfycbwryCS0yiV50ySo6D-ZJbTJzDqU88rB7hhQYITrgfPVq3tCMvKxuoii8CQY1Wo4yyZx/exec")) {
     $("#endpointAlert").hidden = true;
     $("#sheetStatus").textContent = "Planilha: envio ativo";
   } else {
