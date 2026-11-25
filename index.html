@@ -550,6 +550,19 @@ function salvar() {
 let dataSelecionada = hojeISO();
 let mesCalendario = new Date();
 let chamadaAtual = {};
+// Indica que há alterações na chamada ainda não confirmadas na planilha.
+let chamadaModificada = false;
+let chamadaRascunhoContexto = null;
+
+function contextoChamadaAtual() {
+  const t = turmaAtual();
+  return dataSelecionada + "|" + (t ? t.nome : "");
+}
+
+function descartarRascunhoChamada() {
+  chamadaModificada = false;
+  chamadaRascunhoContexto = null;
+}
 
 function mostrarSecao(id) {
   $$(".section").forEach((s) => s.classList.toggle("active", s.id === id));
@@ -667,6 +680,10 @@ function carregarDadosNuvem(opcoes = {}) {
 
       const turmaAnterior = turmaAtual();
       const nomeTurmaAnterior = turmaAnterior ? turmaAnterior.nome : null;
+      // Preserva a chamada que está sendo editada durante as atualizações automáticas.
+      const preservarRascunho =
+        chamadaModificada &&
+        chamadaRascunhoContexto === contextoChamadaAtual();
 
       estado.turmas = data.turmas.map(t => ({
         id: String(t.id),
@@ -685,7 +702,10 @@ function carregarDadosNuvem(opcoes = {}) {
       salvar();
       renderTurmas();
       renderCalendario();
-      carregarChamada();
+      if (!preservarRascunho) {
+        carregarChamada();
+        descartarRascunhoChamada();
+      }
       atualizarKpisConsulta();
       if ($("#sec-consulta").classList.contains("active")) buscarFaltosos();
 
@@ -829,6 +849,7 @@ $("#listaTurmas").addEventListener("click", (ev) => {
   }
   const main = ev.target.closest(".list-main");
   if (main) {
+    descartarRascunhoChamada();
     estado.turmaSelecionada = main.dataset.id;
     salvar();
     renderTurmas();
@@ -885,6 +906,7 @@ function renderCalendario() {
     if (estado.faltas[iso] && Object.values(estado.faltas[iso]).some((l) => l.length > 0)) btn.classList.add("has-faltas");
     btn.addEventListener("click", () => {
       dataSelecionada = iso;
+      descartarRascunhoChamada();
       if (fora) mesCalendario = new Date(anoRef, mesRef, 1);
       renderCalendario();
       carregarChamada();
@@ -963,10 +985,13 @@ $("#listaChamada").addEventListener("click", (ev) => {
   }
 
   chamadaAtual[id] = tentandoMarcarFalta;
+  chamadaModificada = true;
+  chamadaRascunhoContexto = contextoChamadaAtual();
   renderChamada();
 });
 
 $("#selTurma").addEventListener("change", (ev) => {
+  descartarRascunhoChamada();
   estado.turmaSelecionada = ev.target.value;
   salvar();
   renderTurmas();
@@ -975,6 +1000,8 @@ $("#selTurma").addEventListener("change", (ev) => {
 
 $("#btnTodosPresentes").addEventListener("click", () => {
   Object.keys(chamadaAtual).forEach((k) => { chamadaAtual[k] = false; });
+  chamadaModificada = true;
+  chamadaRascunhoContexto = contextoChamadaAtual();
   renderChamada();
   window.skipUI.toast("Todos marcados como presentes.");
 });
@@ -1007,10 +1034,15 @@ $("#btnConfirmarFaltas").addEventListener("click", () => {
       aluno: a.nome
     }));
 
-  sincronizarPlanilha({ acao: "registrar_faltas", data: formatarDataBR(dataSelecionada), turma: t.nome, registros }).then(() => {
-    renderCalendario();
-    atualizarKpisCadastro();
-    window.skipUI.toast("Faltas do dia " + formatarDataBR(dataSelecionada) + " confirmadas e salvas na planilha!", { type: "success" });
+  sincronizarPlanilha({ acao: "registrar_faltas", data: formatarDataBR(dataSelecionada), turma: t.nome, registros }).then((resultado) => {
+    if (resultado && resultado.enviado) {
+      // A confirmação foi validada no servidor; agora a chamada pode ser recarregada.
+      descartarRascunhoChamada();
+      carregarChamada();
+      renderCalendario();
+      atualizarKpisCadastro();
+      window.skipUI.toast("Faltas do dia " + formatarDataBR(dataSelecionada) + " confirmadas e salvas na planilha!", { type: "success" });
+    }
   });
 });
 
@@ -1124,6 +1156,7 @@ $("#btnBackup").addEventListener("click", () => {
 $("#btnReset").addEventListener("click", () => {
   if (confirm("Deseja restaurar o estado inicial?")) {
     estado = estadoInicial();
+    descartarRascunhoChamada();
     salvar();
     renderTurmas();
     renderCalendario();
